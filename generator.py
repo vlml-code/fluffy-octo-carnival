@@ -221,8 +221,11 @@ class StoryPromptGenerator:
                     None
                 )
             primary_age = None
+            primary_age_group = None
             if primary_template and primary_setting:
-                primary_age = self._choose_age(primary_template, primary_setting, None)
+                primary_age, primary_age_group = self._choose_age(
+                    primary_template, primary_setting, None
+                )
 
             # Генерируем нужное количество персонажей
             for i in range(num_chars):
@@ -241,9 +244,12 @@ class StoryPromptGenerator:
                     "can_have_initiative": char_template.can_have_initiative
                 }
 
-                char_age = self._choose_age(char_template, setting, primary_age)
+                char_age, char_age_group = self._choose_age(
+                    char_template, setting, primary_age_group
+                )
                 if setting and setting.get("is_primary"):
                     primary_age = char_age
+                    primary_age_group = char_age_group
 
                 char["age"] = char_age
 
@@ -315,10 +321,14 @@ class StoryPromptGenerator:
 
         return characters
 
-    def _choose_age(self, char_template, setting, primary_age):
+    def _choose_age(self, char_template, setting, primary_age_group):
         """Определяет возраст персонажа с учетом настроек"""
-        if setting and setting.get("follow_primary_age") and primary_age is not None and not setting.get("is_primary"):
-            return primary_age
+        follow_primary = (
+            setting
+            and setting.get("follow_primary_age")
+            and primary_age_group is not None
+            and not setting.get("is_primary")
+        )
 
         allowed_groups = []
         if setting:
@@ -336,16 +346,24 @@ class StoryPromptGenerator:
             except AttributeError:
                 allowed_groups = []
 
-        if allowed_groups:
-            return self._random_age_from_groups(allowed_groups)
+        if follow_primary:
+            chosen_group = primary_age_group
+        elif allowed_groups:
+            chosen_group = random.choice(allowed_groups)
+        else:
+            chosen_group = random.choice(list(self.AGE_GROUP_RANGES.keys()))
 
-        return self._random_age_from_groups()
+        return self._random_age_from_group(chosen_group), chosen_group
 
     def _random_age_from_groups(self, allowed_groups=None):
         """Возвращает случайный возраст из указанных возрастных групп"""
         groups = allowed_groups or list(self.AGE_GROUP_RANGES.keys())
         chosen_group = random.choice(groups)
-        age_min, age_max = self.AGE_GROUP_RANGES[chosen_group]
+        return self._random_age_from_group(chosen_group)
+
+    def _random_age_from_group(self, group):
+        """Возвращает случайный возраст из конкретной возрастной группы"""
+        age_min, age_max = self.AGE_GROUP_RANGES[group]
         return random.randint(age_min, age_max)
 
     def _assign_character_traits(self, characters):
