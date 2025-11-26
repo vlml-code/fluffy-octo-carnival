@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Стили Диалогов - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Стилями Диалогов</h2>
+
+<div class="form-container">
+    <h3>Добавить новый стиль диалогов</h3>
+    <form id="dialogueStyleForm">
+        <div class="form-group">
+            <label for="styleName">Название стиля:</label>
+            <input type="text" id="styleName" placeholder="Например: Естественный, Формальный" required>
+        </div>
+        <div class="form-group">
+            <label for="styleDescription">Описание:</label>
+            <textarea id="styleDescription" placeholder="Опишите особенности этого стиля диалогов"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">Добавить стиль</button>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Существующие стили диалогов</h3>
+<ul class="item-list" id="stylesList">
+    {% for style in dialogue_styles %}
+    <li class="item-card" data-id="{{ style.id }}">
+        <h4>{{ style.name }}</h4>
+        <p>{{ style.description or 'Нет описания' }}</p>
+        <div class="item-actions">
+            <button class="btn btn-danger" onclick="deleteDialogueStyle({{ style.id }})">Удалить</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Стилей диалогов пока нет. Добавьте первый стиль!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const dialogueStyleForm = document.getElementById('dialogueStyleForm');
+const alertDiv = document.getElementById('alert');
+
+dialogueStyleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('styleName').value,
+        description: document.getElementById('styleDescription').value
+    };
+
+    try {
+        const response = await fetch('/api/dialogue-styles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Стиль диалогов успешно добавлен!', 'success');
+            dialogueStyleForm.reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении стиля', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteDialogueStyle(id) {
+    if (!confirm('Вы уверены, что хотите удалить этот стиль диалогов?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/dialogue-styles/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Стиль диалогов удален', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении стиля', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}

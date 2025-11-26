@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Подкатегории - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Подкатегориями</h2>
+
+<div class="form-container">
+    <h3 id="formTitle">Добавить новую подкатегорию</h3>
+    <form id="subcategoryForm">
+        <input type="hidden" id="subcategoryId">
+
+        <div class="form-group">
+            <label for="categoryId">Категория:</label>
+            <select id="categoryId" required>
+                <option value="">Выберите категорию</option>
+                {% for category in categories %}
+                <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="subcategoryName">Название подкатегории:</label>
+            <input type="text" id="subcategoryName" required>
+        </div>
+
+        <div class="form-group">
+            <label for="subcategoryDescription">Описание:</label>
+            <textarea id="subcategoryDescription"></textarea>
+        </div>
+
+        <div class="spec-row">
+            <div class="form-group">
+                <label for="numCharMin">Мин. персонажей:</label>
+                <input type="number" id="numCharMin" min="1" value="1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="numCharMax">Макс. персонажей:</label>
+                <input type="number" id="numCharMax" min="1" value="1" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Персонажи (выберите из существующих):</label>
+            <div id="characterSelection" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 1rem; border-radius: 5px;">
+                <!-- Персонажи будут загружены динамически -->
+            </div>
+            <p style="font-size: 0.9em; color: #666; margin-top: 0.5rem;">
+                Выберите персонажей для этой подкатегории. <a href="{{ url_for('characters_page') }}" target="_blank">Создать нового персонажа</a>
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label>Разрешенные перспективы:</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" class="perspective-check" value="первое_лицо">
+                    Первое лицо
+                </label>
+                <label>
+                    <input type="checkbox" class="perspective-check" value="третье_лицо" checked>
+                    Третье лицо
+                </label>
+                <label>
+                    <input type="checkbox" class="perspective-check" value="переключение">
+                    Переключение
+                </label>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-success" id="submitBtn">Добавить подкатегорию</button>
+            <button type="button" class="btn btn-warning hidden" id="cancelBtn" onclick="cancelEdit()">Отмена</button>
+        </div>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Существующие подкатегории</h3>
+<ul class="item-list" id="subcategoriesList">
+    {% for subcategory in subcategories %}
+    <li class="item-card" data-id="{{ subcategory.id }}">
+        <h4>{{ subcategory.name }}</h4>
+        <p><strong>Категория:</strong> {{ subcategory.category.name }}</p>
+        <p>{{ subcategory.description or 'Нет описания' }}</p>
+        <p><strong>Количество персонажей:</strong> {{ subcategory.num_characters_min }} - {{ subcategory.num_characters_max }}</p>
+        <p><strong>Перспективы:</strong> {{ subcategory.get_allowed_perspectives()|join(', ') }}</p>
+
+        {% if subcategory.characters %}
+        <p><strong>Персонажи:</strong></p>
+        <ul style="margin-left: 1.5rem;">
+            {% for character in subcategory.characters %}
+            <li>{{ character.name }} ({{ character.gender }}, {{ character.age_min }}-{{ character.age_max }} лет)</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="item-actions">
+            <button class="btn btn-warning" onclick="editSubcategory({{ subcategory.id }})">Редактировать</button>
+            <button class="btn btn-danger" onclick="deleteSubcategory({{ subcategory.id }})">Удалить</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Подкатегорий пока нет. Добавьте первую подкатегорию!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const subcategoryForm = document.getElementById('subcategoryForm');
+const alertDiv = document.getElementById('alert');
+const formTitle = document.getElementById('formTitle');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+
+let editingId = null;
+let allCharacters = [];
+
+// Загрузка персонажей при загрузке страницы
+async function loadCharacters() {
+    try {
+        const response = await fetch('/api/characters');
+        if (response.ok) {
+            allCharacters = await response.json();
+            renderCharacterSelection();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки персонажей:', error);
+    }
+}
+
+function renderCharacterSelection(selectedIds = []) {
+    const container = document.getElementById('characterSelection');
+
+    if (allCharacters.length === 0) {
+        container.innerHTML = '<p style="color: #999;">Нет доступных персонажей. <a href="/characters">Создайте первого персонажа</a></p>';
+        return;
+    }
+
+    container.innerHTML = allCharacters.map(char => `
+        <label style="display: block; padding: 0.5rem; border-bottom: 1px solid #eee;">
+            <input type="checkbox" class="character-checkbox" value="${char.id}" ${selectedIds.includes(char.id) ? 'checked' : ''}>
+            <strong>${char.name}</strong> - ${char.gender}, ${char.age_min}-${char.age_max} лет
+            ${char.description ? `<br><span style="font-size: 0.9em; color: #666;">${char.description}</span>` : ''}
+        </label>
+    `).join('');
+}
+
+subcategoryForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Собираем выбранных персонажей
+    const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
+
+    // Собираем разрешенные перспективы
+    const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
+        .map(cb => cb.value);
+
+    const data = {
+        category_id: parseInt(document.getElementById('categoryId').value),
+        name: document.getElementById('subcategoryName').value,
+        description: document.getElementById('subcategoryDescription').value,
+        num_characters_min: parseInt(document.getElementById('numCharMin').value),
+        num_characters_max: parseInt(document.getElementById('numCharMax').value),
+        character_ids: selectedCharacterIds,
+        allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо']
+    };
+
+    try {
+        let response;
+        if (editingId) {
+            // Обновление
+            response = await fetch(`/api/subcategories/${editingId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        } else {
+            // Создание
+            response = await fetch('/api/subcategories', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        }
+
+        if (response.ok) {
+            showAlert(editingId ? 'Подкатегория успешно обновлена!' : 'Подкатегория успешно добавлена!', 'success');
+            subcategoryForm.reset();
+            cancelEdit();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при сохранении подкатегории', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function editSubcategory(id) {
+    try {
+        const response = await fetch(`/api/subcategories/${id}`);
+        if (response.ok) {
+            const subcategory = await response.json();
+
+            editingId = id;
+            formTitle.textContent = 'Редактировать подкатегорию';
+            submitBtn.textContent = 'Сохранить изменения';
+            cancelBtn.classList.remove('hidden');
+
+            document.getElementById('categoryId').value = subcategory.category_id;
+            document.getElementById('subcategoryName').value = subcategory.name;
+            document.getElementById('subcategoryDescription').value = subcategory.description || '';
+            document.getElementById('numCharMin').value = subcategory.num_characters_min;
+            document.getElementById('numCharMax').value = subcategory.num_characters_max;
+
+            // Устанавливаем перспективы
+            document.querySelectorAll('.perspective-check').forEach(cb => {
+                cb.checked = subcategory.allowed_perspectives.includes(cb.value);
+            });
+
+            // Устанавливаем выбранных персонажей
+            const characterIds = subcategory.character_ids || subcategory.characters.map(c => c.id) || [];
+            renderCharacterSelection(characterIds);
+
+            // Прокрутка к форме
+            subcategoryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function cancelEdit() {
+    editingId = null;
+    formTitle.textContent = 'Добавить новую подкатегорию';
+    submitBtn.textContent = 'Добавить подкатегорию';
+    cancelBtn.classList.add('hidden');
+    subcategoryForm.reset();
+    renderCharacterSelection();
+}
+
+async function deleteSubcategory(id) {
+    if (!confirm('Вы уверены, что хотите удалить эту подкатегорию?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/subcategories/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Подкатегория удалена', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении подкатегории', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+
+// Загружаем персонажей при загрузке страницы
+loadCharacters();
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Добро пожаловать в Генератор Промптов для Рассказов!</h2>
+
+<p style="margin-bottom: 2rem;">
+    Эта система поможет вам создавать детализированные промпты для написания рассказов на основе различных категорий, персонажей и параметров.
+</p>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+    <div class="item-card">
+        <h4>Категории и Подкатегории</h4>
+        <p>Управляйте главными категориями рассказов и их подкатегориями, которые определяют основу сюжета.</p>
+        <a href="{{ url_for('categories_page') }}" class="btn btn-primary" style="margin-top: 1rem;">Перейти к категориям</a>
+    </div>
+
+    <div class="item-card">
+        <h4>Характеристики Персонажей</h4>
+        <p>Настройте типы характеристик персонажей (темперамент, внешность и т.д.) и их возможные значения.</p>
+        <a href="{{ url_for('character_traits_page') }}" class="btn btn-primary" style="margin-top: 1rem;">Настроить характеристики</a>
+    </div>
+
+    <div class="item-card">
+        <h4>Локации</h4>
+        <p>Добавляйте страны, типы мест и конкретные локации для действия рассказов.</p>
+        <a href="{{ url_for('locations_page') }}" class="btn btn-primary" style="margin-top: 1rem;">Управление локациями</a>
+    </div>
+
+    <div class="item-card">
+        <h4>Тоны и Стили</h4>
+        <p>Определите возможные тоны повествования и стили диалогов для рассказов.</p>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <a href="{{ url_for('tones_page') }}" class="btn btn-primary">Тоны</a>
+            <a href="{{ url_for('dialogue_styles_page') }}" class="btn btn-primary">Диалоги</a>
+        </div>
+    </div>
+
+    <div class="item-card" style="border-left-color: #f5576c; grid-column: 1 / -1;">
+        <h4>Генерация Промпта</h4>
+        <p>Готовы создать промпт? Система случайным образом выберет параметры из базы данных и сгенерирует детальный промпт для рассказа.</p>
+        <a href="{{ url_for('generate_page') }}" class="btn btn-generate">Сгенерировать промпт</a>
+    </div>
+</div>
+
+<h3 style="margin-top: 3rem;">Как это работает?</h3>
+<ol style="line-height: 2; margin-left: 2rem;">
+    <li>Система выбирает <strong>случайную категорию</strong> (общее направление рассказа)</li>
+    <li>Затем <strong>случайную подкатегорию</strong> (конкретный сюжет)</li>
+    <li>На основе подкатегории генерируются <strong>персонажи</strong> с их параметрами</li>
+    <li>Определяется <strong>инициатива</strong> (чья воля движет события) и <strong>отношение</strong> других персонажей</li>
+    <li>Каждому персонажу назначаются <strong>случайные характеристики</strong> (внешность, характер и т.д.)</li>
+    <li>Выбирается <strong>перспектива</strong> повествования (от чьего лица)</li>
+    <li>Определяется <strong>место действия</strong> (страна, тип местности, конкретное место)</li>
+    <li>Выбираются <strong>тон</strong> рассказа и <strong>стиль диалогов</strong></li>
+    <li>Все параметры объединяются в единый <strong>текстовый промпт</strong> на русском языке</li>
+</ol>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Тоны - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Тонами Рассказа</h2>
+
+<div class="form-container">
+    <h3>Добавить новый тон</h3>
+    <form id="toneForm">
+        <div class="form-group">
+            <label for="toneName">Название тона:</label>
+            <input type="text" id="toneName" placeholder="Например: Романтический, Напряженный" required>
+        </div>
+        <div class="form-group">
+            <label for="toneDescription">Описание:</label>
+            <textarea id="toneDescription" placeholder="Опишите, как этот тон влияет на повествование"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">Добавить тон</button>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Существующие тоны</h3>
+<ul class="item-list" id="tonesList">
+    {% for tone in tones %}
+    <li class="item-card" data-id="{{ tone.id }}">
+        <h4>{{ tone.name }}</h4>
+        <p>{{ tone.description or 'Нет описания' }}</p>
+        <div class="item-actions">
+            <button class="btn btn-danger" onclick="deleteTone({{ tone.id }})">Удалить</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Тонов пока нет. Добавьте первый тон!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const toneForm = document.getElementById('toneForm');
+const alertDiv = document.getElementById('alert');
+
+toneForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('toneName').value,
+        description: document.getElementById('toneDescription').value
+    };
+
+    try {
+        const response = await fetch('/api/tones', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Тон успешно добавлен!', 'success');
+            toneForm.reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении тона', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteTone(id) {
+    if (!confirm('Вы уверены, что хотите удалить этот тон?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/tones/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Тон удален', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении тона', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}

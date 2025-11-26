@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Локации - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Локациями</h2>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+    <!-- Страны -->
+    <div class="form-container">
+        <h3>Страны</h3>
+        <form id="countryForm">
+            <div class="form-group">
+                <label for="countryName">Название страны:</label>
+                <input type="text" id="countryName" required>
+            </div>
+            <button type="submit" class="btn btn-success">Добавить</button>
+        </form>
+
+        <ul class="item-list" style="margin-top: 1rem;">
+            {% for country in countries %}
+            <li class="item-card" style="padding: 0.8rem;">
+                {{ country.name }}
+                <button class="btn btn-danger" onclick="deleteCountry({{ country.id }})" style="float: right; padding: 0.3rem 0.8rem;">Удалить</button>
+            </li>
+            {% else %}
+            <li style="color: #999;">Нет стран</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Типы локаций -->
+    <div class="form-container">
+        <h3>Типы местности</h3>
+        <form id="locationTypeForm">
+            <div class="form-group">
+                <label for="locationTypeName">Тип местности:</label>
+                <input type="text" id="locationTypeName" placeholder="Например: Большой город" required>
+            </div>
+            <button type="submit" class="btn btn-success">Добавить</button>
+        </form>
+
+        <ul class="item-list" style="margin-top: 1rem;">
+            {% for location_type in location_types %}
+            <li class="item-card" style="padding: 0.8rem;">
+                {{ location_type.name }}
+                <button class="btn btn-danger" onclick="deleteLocationType({{ location_type.id }})" style="float: right; padding: 0.3rem 0.8rem;">Удалить</button>
+            </li>
+            {% else %}
+            <li style="color: #999;">Нет типов местности</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<!-- Конкретные места -->
+<div class="form-container" style="margin-top: 2rem;">
+    <h3>Конкретные места</h3>
+    <form id="locationForm">
+        <div class="spec-row">
+            <div class="form-group">
+                <label for="locationName">Название места:</label>
+                <input type="text" id="locationName" placeholder="Например: Кафе, Парк" required>
+            </div>
+            <div class="form-group">
+                <label for="locationDescription">Описание:</label>
+                <input type="text" id="locationDescription" placeholder="Краткое описание места">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success">Добавить место</button>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Список мест</h3>
+<ul class="item-list" id="locationsList">
+    {% for location in locations %}
+    <li class="item-card" data-id="{{ location.id }}">
+        <h4>{{ location.name }}</h4>
+        <p>{{ location.description or 'Нет описания' }}</p>
+        <div class="item-actions">
+            <button class="btn btn-danger" onclick="deleteLocation({{ location.id }})">Удалить</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Мест пока нет. Добавьте первое место!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const alertDiv = document.getElementById('alert');
+
+// Страны
+document.getElementById('countryForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = { name: document.getElementById('countryName').value };
+
+    try {
+        const response = await fetch('/api/countries', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Страна добавлена!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении страны', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteCountry(id) {
+    try {
+        const response = await fetch(`/api/countries/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showAlert('Страна удалена', 'success');
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+// Типы локаций
+document.getElementById('locationTypeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = { name: document.getElementById('locationTypeName').value };
+
+    try {
+        const response = await fetch('/api/location-types', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Тип местности добавлен!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении типа', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteLocationType(id) {
+    try {
+        const response = await fetch(`/api/location-types/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showAlert('Тип местности удален', 'success');
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+// Места
+document.getElementById('locationForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('locationName').value,
+        description: document.getElementById('locationDescription').value
+    };
+
+    try {
+        const response = await fetch('/api/locations', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Место добавлено!', 'success');
+            document.getElementById('locationForm').reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении места', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteLocation(id) {
+    if (!confirm('Удалить это место?')) return;
+
+    try {
+        const response = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showAlert('Место удалено', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении места', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}
