@@ -174,6 +174,7 @@ function renderCharacterSelection(selectedIds = [], savedSettings = []) {
         const isChecked = selectedIds.includes(char.id);
         const isPrimary = saved.is_primary || primaryId === char.id;
         const followsPrimary = saved.follow_primary_age || false;
+        const isUniqueRole = saved.unique_role || false;
         const ageGroupsText = (char.allowed_age_groups && char.allowed_age_groups.length)
             ? char.allowed_age_groups.map(key => ageLabelsByKey[key] || key).join(', ')
             : 'Все доступные возрастные группы';
@@ -190,6 +191,9 @@ function renderCharacterSelection(selectedIds = [], savedSettings = []) {
                             </label>
                             <label style="font-size: 0.9em;">
                                 <input type="checkbox" id="follow-${char.id}" ${followsPrimary ? 'checked' : ''}> Следует возрасту основного
+                            </label>
+                            <label style="font-size: 0.9em;">
+                                <input type="checkbox" id="unique-${char.id}" ${isUniqueRole ? 'checked' : ''}> Уникальная роль
                             </label>
                         </div>
                         <div style="color: #555; font-size: 0.95em;">${char.gender}</div>
@@ -315,10 +319,12 @@ function collectCharacterSettings(selectedIds) {
 
     return selectedIds.map(id => {
         const followsPrimary = document.getElementById(`follow-${id}`);
+        const uniqueRole = document.getElementById(`unique-${id}`);
         return {
             character_id: id,
             is_primary: primaryId === id,
-            follow_primary_age: primaryId !== id && followsPrimary ? followsPrimary.checked : false
+            follow_primary_age: primaryId !== id && followsPrimary ? followsPrimary.checked : false,
+            unique_role: uniqueRole ? uniqueRole.checked : false
         };
     });
 }
@@ -329,7 +335,7 @@ function toggleCharacterOptions(characterId) {
     const container = checkbox ? checkbox.closest('.character-card') : null;
     if (!container) return;
 
-    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"]');
+    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"], input[type="checkbox"][id^="unique-"]');
     inputs.forEach(input => {
         if (input === checkbox) return;
         input.disabled = !isChecked;
@@ -343,6 +349,10 @@ function toggleCharacterOptions(characterId) {
         const follow = container.querySelector(`#follow-${characterId}`);
         if (follow) {
             follow.checked = false;
+        }
+        const unique = container.querySelector(`#unique-${characterId}`);
+        if (unique) {
+            unique.checked = false;
         }
     }
 }

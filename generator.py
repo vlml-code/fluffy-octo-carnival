@@ -210,6 +210,12 @@ class StoryPromptGenerator:
                 if setting.get("character_id") is not None
             }
 
+            unique_template_ids = {
+                setting.get("character_id")
+                for setting in character_settings
+                if setting.get("unique_role")
+            }
+
             primary_setting = next(
                 (s for s in settings_by_id.values() if s.get("is_primary")),
                 None
@@ -227,10 +233,36 @@ class StoryPromptGenerator:
                     primary_template, primary_setting, None
                 )
 
-            # Генерируем нужное количество персонажей
+            unique_templates = [
+                (c, settings_by_id.get(c.id))
+                for c in available_characters
+                if c.id in unique_template_ids
+            ]
+            non_unique_templates = [
+                (c, settings_by_id.get(c.id))
+                for c in available_characters
+                if c.id not in unique_template_ids
+            ]
+
+            random.shuffle(unique_templates)
+            random.shuffle(non_unique_templates)
+
+            if not non_unique_templates and num_chars > len(unique_templates):
+                num_chars = len(unique_templates)
+
+            def select_template(index):
+                if index < len(unique_templates):
+                    return unique_templates[index]
+                if non_unique_templates:
+                    offset = index - len(unique_templates)
+                    return non_unique_templates[offset % len(non_unique_templates)]
+                return None
+
             for i in range(num_chars):
-                char_template = available_characters[i % len(available_characters)]
-                setting = settings_by_id.get(char_template.id)
+                chosen = select_template(i)
+                if not chosen:
+                    break
+                char_template, setting = chosen
 
                 char = {
                     "gender": char_template.gender,
