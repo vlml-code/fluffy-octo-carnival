@@ -226,29 +226,29 @@ class StoryPromptGenerator:
                     (c for c in available_characters if c.id == primary_setting.get("character_id")),
                     None
                 )
-            primary_age = None
+
             primary_age_group = None
-            if primary_template and primary_setting:
-                primary_age, primary_age_group = self._choose_age(
-                    primary_template, primary_setting, None
-                )
 
             unique_templates = [
                 (c, settings_by_id.get(c.id))
                 for c in available_characters
-                if c.id in unique_template_ids
+                if c.id in unique_template_ids and (not primary_template or c.id != primary_template.id)
             ]
             non_unique_templates = [
                 (c, settings_by_id.get(c.id))
                 for c in available_characters
-                if c.id not in unique_template_ids
+                if c.id not in unique_template_ids and (not primary_template or c.id != primary_template.id)
             ]
 
             random.shuffle(unique_templates)
             random.shuffle(non_unique_templates)
 
-            if not non_unique_templates and num_chars > len(unique_templates):
-                num_chars = len(unique_templates)
+            if not non_unique_templates and num_chars > (len(unique_templates) + (1 if primary_template else 0)):
+                num_chars = len(unique_templates) + (1 if primary_template else 0)
+
+            generation_order = []
+            if primary_template:
+                generation_order.append((primary_template, primary_setting))
 
             def select_template(index):
                 if index < len(unique_templates):
@@ -258,11 +258,13 @@ class StoryPromptGenerator:
                     return non_unique_templates[offset % len(non_unique_templates)]
                 return None
 
-            for i in range(num_chars):
+            for i in range(num_chars - len(generation_order)):
                 chosen = select_template(i)
                 if not chosen:
                     break
-                char_template, setting = chosen
+                generation_order.append(chosen)
+
+            for char_template, setting in generation_order:
 
                 char = {
                     "gender": char_template.gender,
@@ -280,7 +282,6 @@ class StoryPromptGenerator:
                     char_template, setting, primary_age_group
                 )
                 if setting and setting.get("is_primary"):
-                    primary_age = char_age
                     primary_age_group = char_age_group
 
                 char["age"] = char_age
