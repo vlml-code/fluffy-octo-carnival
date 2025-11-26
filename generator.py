@@ -80,7 +80,17 @@ class StoryPromptGenerator:
         prompt_parts.append(f"\n## ПЕРСПЕКТИВА ПОВЕСТВОВАНИЯ")
         prompt_parts.append(perspective_type)
 
-        # 5. Место действия
+        # 5. Второстепенные элементы
+        secondary_elements = self._select_secondary_elements(category)
+        if secondary_elements:
+            prompt_parts.append(f"\n## ВТОРОСТЕПЕННЫЕ ЭЛЕМЕНТЫ")
+            prompt_parts.append("(Опциональные элементы, которые могут быть включены в историю как дополнительные сюжетные линии, но не являются основным фокусом)")
+            for elem in secondary_elements:
+                prompt_parts.append(f"\n- **{elem['category']}**: {elem['subcategory']}")
+                if elem.get('description'):
+                    prompt_parts.append(f"  {elem['description']}")
+
+        # 6. Место действия
         location_info = self._generate_location()
         if location_info:
             prompt_parts.append(f"\n## МЕСТО ДЕЙСТВИЯ")
@@ -90,7 +100,7 @@ class StoryPromptGenerator:
             if location_info.get('location_description'):
                 prompt_parts.append(f"  {location_info['location_description']}")
 
-        # 6. Тон рассказа
+        # 7. Тон рассказа
         tone = self._select_random_tone()
         if tone:
             prompt_parts.append(f"\n## ТОН РАССКАЗА")
@@ -98,7 +108,7 @@ class StoryPromptGenerator:
             if tone.description:
                 prompt_parts.append(f"{tone.description}")
 
-        # 7. Стиль диалогов
+        # 8. Стиль диалогов
         dialogue_style = self._select_random_dialogue_style()
         if dialogue_style:
             prompt_parts.append(f"\n## СТИЛЬ ДИАЛОГОВ")
@@ -117,6 +127,40 @@ class StoryPromptGenerator:
         """Выбирает случайную подкатегорию для категории"""
         subcategories = Subcategory.query.filter_by(category_id=category.id).all()
         return random.choice(subcategories) if subcategories else None
+
+    def _select_secondary_elements(self, main_category):
+        """Выбирает 1-2 второстепенных элемента из других категорий
+
+        Args:
+            main_category: Основная категория (исключается из выбора)
+
+        Returns:
+            list: Список словарей с информацией о второстепенных элементах
+        """
+        # Получаем все категории кроме основной
+        other_categories = Category.query.filter(Category.id != main_category.id).all()
+
+        if not other_categories:
+            return []
+
+        # Выбираем 1-2 второстепенных элемента
+        num_elements = random.randint(1, 2)
+
+        secondary_elements = []
+        selected_categories = random.sample(other_categories, min(num_elements, len(other_categories)))
+
+        for category in selected_categories:
+            # Выбираем случайную подкатегорию из этой категории
+            subcategories = Subcategory.query.filter_by(category_id=category.id).all()
+            if subcategories:
+                subcategory = random.choice(subcategories)
+                secondary_elements.append({
+                    'category': category.name,
+                    'subcategory': subcategory.name,
+                    'description': subcategory.description
+                })
+
+        return secondary_elements
 
     def _generate_characters(self, subcategory):
         """Генерирует персонажей согласно спецификации подкатегории"""
