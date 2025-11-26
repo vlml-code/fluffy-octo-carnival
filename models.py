@@ -54,6 +54,10 @@ class Subcategory(db.Model):
     # JSON список ID персонажей из таблицы characters
     character_ids = db.Column(db.Text, default='[]')
 
+    # JSON настройки выбранных персонажей
+    # Формат: [{"character_id": int, "allowed_age_groups": [str], "is_primary": bool, "follow_primary_age": bool}]
+    character_settings = db.Column(db.Text, default='[]')
+
     # Настройки перспективы
     # Формат: ["первое_лицо", "третье_лицо", "переключение"]
     allowed_perspectives = db.Column(db.Text, default='["третье_лицо"]')
@@ -83,6 +87,12 @@ class Subcategory(db.Model):
         """Установить список ID персонажей"""
         self.character_ids = json.dumps(ids, ensure_ascii=False)
 
+    def get_character_settings(self):
+        return json.loads(self.character_settings) if self.character_settings else []
+
+    def set_character_settings(self, settings):
+        self.character_settings = json.dumps(settings, ensure_ascii=False)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -93,6 +103,7 @@ class Subcategory(db.Model):
             'num_characters_max': self.num_characters_max,
             'character_specs': self.get_character_specs(),
             'character_ids': self.get_character_ids(),
+            'character_settings': self.get_character_settings(),
             'characters': [c.to_dict() for c in self.characters],
             'allowed_perspectives': self.get_allowed_perspectives(),
             'created_at': self.created_at.isoformat() if self.created_at else None

@@ -119,6 +119,18 @@ const cancelBtn = document.getElementById('cancelBtn');
 
 let editingId = null;
 let allCharacters = [];
+const ageGroups = [
+    { key: 'ребенок', label: 'Ребенок (8-11)' },
+    { key: 'подросток', label: 'Подросток (12-15)' },
+    { key: 'юный', label: 'Юный (16-18)' },
+    { key: 'молодой', label: 'Молодой (19-23)' },
+    { key: 'средний', label: 'Средний (24-35)' },
+    { key: 'зрелый', label: 'Зрелый (36-55)' },
+    { key: 'старый', label: 'Старый (56-70)' }
+];
+
+// Хранение настроек персонажей для подкатегории
+let characterSettings = {};
 
 // Загрузка персонажей при загрузке страницы
 async function loadCharacters() {
@@ -133,7 +145,7 @@ async function loadCharacters() {
     }
 }
 
-function renderCharacterSelection(selectedIds = []) {
+function renderCharacterSelection(selectedIds = [], savedSettings = []) {
     const container = document.getElementById('characterSelection');
 
     if (allCharacters.length === 0) {
@@ -141,13 +153,59 @@ function renderCharacterSelection(selectedIds = []) {
         return;
     }
 
-    container.innerHTML = allCharacters.map(char => `
-        <label style="display: block; padding: 0.5rem; border-bottom: 1px solid #eee;">
-            <input type="checkbox" class="character-checkbox" value="${char.id}" ${selectedIds.includes(char.id) ? 'checked' : ''}>
-            <strong>${char.name}</strong> - ${char.gender}, ${char.age_min}-${char.age_max} лет
-            ${char.description ? `<br><span style="font-size: 0.9em; color: #666;">${char.description}</span>` : ''}
-        </label>
-    `).join('');
+    if (savedSettings.length > 0) {
+        characterSettings = savedSettings.reduce((acc, setting) => {
+            if (setting.character_id) {
+                acc[setting.character_id] = setting;
+            }
+            return acc;
+        }, {});
+    }
+
+    const primaryId = Object.values(characterSettings).find(setting => setting.is_primary)?.character_id || null;
+
+    container.innerHTML = allCharacters.map(char => {
+        const saved = characterSettings[char.id] || {};
+        const isChecked = selectedIds.includes(char.id);
+        const isPrimary = saved.is_primary || primaryId === char.id;
+        const followsPrimary = saved.follow_primary_age || false;
+        const selectedGroups = saved.allowed_age_groups && saved.allowed_age_groups.length > 0
+            ? saved.allowed_age_groups
+            : ageGroups.map(group => group.key);
+
+        const ageGroupCheckboxes = ageGroups.map(group => `
+            <label class="age-chip">
+                <input type="checkbox" name="age-group-${char.id}" value="${group.key}" ${selectedGroups.includes(group.key) ? 'checked' : ''}>
+                ${group.label}
+            </label>
+        `).join('');
+
+        return `
+            <div class="character-card" data-id="${char.id}">
+                <label style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                    <input type="checkbox" class="character-checkbox" value="${char.id}" ${isChecked ? 'checked' : ''} onchange="toggleCharacterOptions(${char.id})">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <strong>${char.name}</strong>
+                            <label style="font-size: 0.9em;">
+                                <input type="radio" name="primaryCharacter" value="${char.id}" ${isPrimary ? 'checked' : ''}> Основной
+                            </label>
+                            <label style="font-size: 0.9em;">
+                                <input type="checkbox" id="follow-${char.id}" ${followsPrimary ? 'checked' : ''}> Следует возрасту основного
+                            </label>
+                        </div>
+                        <div style="color: #555; font-size: 0.95em;">${char.gender}, ${char.age_min}-${char.age_max} лет</div>
+                        ${char.description ? `<div style=\"font-size: 0.9em; color: #666; margin-top: 0.25rem;\">${char.description}</div>` : ''}
+                        <div class="age-group-grid">
+                            ${ageGroupCheckboxes}
+                        </div>
+                    </div>
+                </label>
+            </div>
+        `;
+    }).join('');
+
+    allCharacters.forEach(char => toggleCharacterOptions(char.id));
 }
 
 subcategoryForm.addEventListener('submit', async (e) => {
@@ -156,6 +214,14 @@ subcategoryForm.addEventListener('submit', async (e) => {
     // Собираем выбранных персонажей
     const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
         .map(cb => parseInt(cb.value));
+
+    const selectedPrimary = document.querySelector('input[name="primaryCharacter"]:checked');
+    if (selectedPrimary && !selectedCharacterIds.includes(parseInt(selectedPrimary.value))) {
+        showAlert('Основной персонаж должен быть выбран среди персонажей подкатегории', 'error');
+        return;
+    }
+
+    const characterSettingsPayload = collectCharacterSettings(selectedCharacterIds);
 
     // Собираем разрешенные перспективы
     const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
@@ -168,7 +234,8 @@ subcategoryForm.addEventListener('submit', async (e) => {
         num_characters_min: parseInt(document.getElementById('numCharMin').value),
         num_characters_max: parseInt(document.getElementById('numCharMax').value),
         character_ids: selectedCharacterIds,
-        allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо']
+        allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо'],
+        character_settings: characterSettingsPayload
     };
 
     try {
@@ -226,7 +293,7 @@ async function editSubcategory(id) {
 
             // Устанавливаем выбранных персонажей
             const characterIds = subcategory.character_ids || subcategory.characters.map(c => c.id) || [];
-            renderCharacterSelection(characterIds);
+            renderCharacterSelection(characterIds, subcategory.character_settings || []);
 
             // Прокрутка к форме
             subcategoryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -242,7 +309,49 @@ function cancelEdit() {
     submitBtn.textContent = 'Добавить подкатегорию';
     cancelBtn.classList.add('hidden');
     subcategoryForm.reset();
+    characterSettings = {};
     renderCharacterSelection();
+}
+
+function collectCharacterSettings(selectedIds) {
+    const primaryInput = document.querySelector('input[name="primaryCharacter"]:checked');
+    const primaryId = primaryInput ? parseInt(primaryInput.value) : null;
+
+    return selectedIds.map(id => {
+        const allowedAgeGroups = Array.from(document.querySelectorAll(`input[name="age-group-${id}"]:checked`))
+            .map(cb => cb.value);
+        const followsPrimary = document.getElementById(`follow-${id}`);
+        return {
+            character_id: id,
+            allowed_age_groups: allowedAgeGroups,
+            is_primary: primaryId === id,
+            follow_primary_age: primaryId !== id && followsPrimary ? followsPrimary.checked : false
+        };
+    });
+}
+
+function toggleCharacterOptions(characterId) {
+    const checkbox = document.querySelector(`.character-checkbox[value="${characterId}"]`);
+    const isChecked = checkbox ? checkbox.checked : false;
+    const container = checkbox ? checkbox.closest('.character-card') : null;
+    if (!container) return;
+
+    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"], input[name^="age-group-"]');
+    inputs.forEach(input => {
+        if (input === checkbox) return;
+        input.disabled = !isChecked;
+    });
+
+    if (!isChecked) {
+        const radio = container.querySelector('input[type="radio"][name="primaryCharacter"]');
+        if (radio && radio.checked) {
+            radio.checked = false;
+        }
+        const follow = container.querySelector(`#follow-${characterId}`);
+        if (follow) {
+            follow.checked = false;
+        }
+    }
 }
 
 async function deleteSubcategory(id) {

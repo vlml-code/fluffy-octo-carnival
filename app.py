@@ -137,6 +137,11 @@ def api_subcategories():
         )
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+        settings = data.get('character_settings', [])
+        if settings:
+            selected_ids = set(data.get('character_ids', []))
+            settings = [s for s in settings if s.get('character_id') in selected_ids]
+        subcategory.set_character_settings(settings)
 
         # Добавляем связь с персонажами
         if 'character_ids' in data and data['character_ids']:
@@ -172,6 +177,11 @@ def api_subcategory(id):
         subcategory.num_characters_max = data.get('num_characters_max', 1)
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+        settings = data.get('character_settings', [])
+        if settings:
+            selected_ids = set(data.get('character_ids', []))
+            settings = [s for s in settings if s.get('character_id') in selected_ids]
+        subcategory.set_character_settings(settings)
 
         # Обновляем связь с персонажами
         if 'character_ids' in data:

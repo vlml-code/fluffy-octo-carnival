@@ -308,6 +308,29 @@ input[type="checkbox"] {
     border: 1px solid #f5c6cb;
 }
 
+.character-card {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.age-group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+}
+
+.age-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    border: 1px solid #e5e7eb;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .spec-row {

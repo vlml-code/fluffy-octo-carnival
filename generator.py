@@ -8,6 +8,16 @@ from models import (
 class StoryPromptGenerator:
     """Генератор промптов для рассказов"""
 
+    AGE_GROUP_RANGES = {
+        "ребенок": (8, 11),
+        "подросток": (12, 15),
+        "юный": (16, 18),
+        "молодой": (19, 23),
+        "средний": (24, 35),
+        "зрелый": (36, 55),
+        "старый": (56, 70),
+    }
+
     def __init__(self, db_session):
         self.db = db_session
 
@@ -193,13 +203,35 @@ class StoryPromptGenerator:
             # Используем персонажей из связанной таблицы
             available_characters = list(subcategory.characters)
 
+            character_settings = subcategory.get_character_settings()
+            settings_by_id = {
+                setting.get("character_id"): setting
+                for setting in character_settings
+                if setting.get("character_id") is not None
+            }
+
+            primary_setting = next(
+                (s for s in settings_by_id.values() if s.get("is_primary")),
+                None
+            )
+            primary_template = None
+            if primary_setting:
+                primary_template = next(
+                    (c for c in available_characters if c.id == primary_setting.get("character_id")),
+                    None
+                )
+            primary_age = None
+            if primary_template and primary_setting:
+                primary_age = self._choose_age(primary_template, primary_setting, None)
+
             # Генерируем нужное количество персонажей
             for i in range(num_chars):
                 char_template = available_characters[i % len(available_characters)]
+                setting = settings_by_id.get(char_template.id)
 
                 char = {
                     "gender": char_template.gender,
-                    "age": random.randint(char_template.age_min, char_template.age_max),
+                    "age": None,
                     "role": char_template.name,
                     "role_description": char_template.description,
                     "has_initiative": False,
@@ -208,6 +240,14 @@ class StoryPromptGenerator:
                     "is_narrator": False,
                     "can_have_initiative": char_template.can_have_initiative
                 }
+
+                char_age = self._choose_age(char_template, setting, primary_age)
+                if setting and setting.get("is_primary"):
+                    primary_age = char_age
+                elif setting and setting.get("follow_primary_age") and primary_age is not None:
+                    char_age = primary_age
+
+                char["age"] = char_age
 
                 characters.append(char)
 
@@ -272,6 +312,23 @@ class StoryPromptGenerator:
         self._assign_character_traits(characters)
 
         return characters
+
+    def _choose_age(self, char_template, setting, primary_age):
+        """Определяет возраст персонажа с учетом настроек"""
+        if setting:
+            if setting.get("follow_primary_age") and primary_age is not None and not setting.get("is_primary"):
+                return primary_age
+
+            allowed_groups = [
+                group for group in setting.get("allowed_age_groups", [])
+                if group in self.AGE_GROUP_RANGES
+            ]
+            if allowed_groups:
+                chosen_group = random.choice(allowed_groups)
+                age_min, age_max = self.AGE_GROUP_RANGES[chosen_group]
+                return random.randint(age_min, age_max)
+
+        return random.randint(char_template.age_min, char_template.age_max)
 
     def _assign_character_traits(self, characters):
         """Назначает случайные характеристики персонажам"""
