@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Характеристики Персонажей - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Характеристиками Персонажей</h2>
+
+<div class="form-container">
+    <h3>Добавить новый тип характеристики</h3>
+    <form id="traitTypeForm">
+        <div class="form-group">
+            <label for="traitName">Название характеристики:</label>
+            <input type="text" id="traitName" placeholder="Например: Длина волос, Темперамент" required>
+        </div>
+
+        <div class="form-group">
+            <label>Применимо к полу:</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="appliesToMale" checked>
+                    Мужской
+                </label>
+                <label>
+                    <input type="checkbox" id="appliesToFemale" checked>
+                    Женский
+                </label>
+                <label>
+                    <input type="checkbox" id="appliesToNonbinary" checked>
+                    Небинарный
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-success">Добавить тип характеристики</button>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Существующие типы характеристик</h3>
+<ul class="item-list" id="traitTypesList">
+    {% for trait_type in trait_types %}
+    <li class="item-card" data-id="{{ trait_type.id }}">
+        <h4>{{ trait_type.name }}</h4>
+        <p>
+            <strong>Применимо к:</strong>
+            {% set genders = [] %}
+            {% if trait_type.applies_to_male %}{% set _ = genders.append('мужской') %}{% endif %}
+            {% if trait_type.applies_to_female %}{% set _ = genders.append('женский') %}{% endif %}
+            {% if trait_type.applies_to_nonbinary %}{% set _ = genders.append('небинарный') %}{% endif %}
+            {{ genders|join(', ') }}
+        </p>
+
+        <div style="margin-top: 1rem;">
+            <strong>Значения:</strong>
+            <div class="trait-values" id="values-{{ trait_type.id }}">
+                {% for value in trait_type.trait_values %}
+                <span class="trait-value">
+                    {{ value.value }}
+                    <button onclick="deleteTraitValue({{ value.id }}, {{ trait_type.id }})">×</button>
+                </span>
+                {% endfor %}
+            </div>
+
+            <form class="add-value-form" data-trait-id="{{ trait_type.id }}" style="margin-top: 0.5rem;">
+                <input type="text" placeholder="Новое значение" class="value-input" style="width: 200px; display: inline-block;">
+                <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">Добавить</button>
+            </form>
+        </div>
+
+        <div class="item-actions">
+            <button class="btn btn-danger" onclick="deleteTraitType({{ trait_type.id }})">Удалить тип</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Типов характеристик пока нет. Добавьте первый тип!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const traitTypeForm = document.getElementById('traitTypeForm');
+const alertDiv = document.getElementById('alert');
+
+traitTypeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('traitName').value,
+        applies_to_male: document.getElementById('appliesToMale').checked,
+        applies_to_female: document.getElementById('appliesToFemale').checked,
+        applies_to_nonbinary: document.getElementById('appliesToNonbinary').checked
+    };
+
+    try {
+        const response = await fetch('/api/character-trait-types', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Тип характеристики успешно добавлен!', 'success');
+            traitTypeForm.reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении типа характеристики', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+// Добавление значения к типу характеристики
+document.querySelectorAll('.add-value-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const traitTypeId = form.getAttribute('data-trait-id');
+        const valueInput = form.querySelector('.value-input');
+        const value = valueInput.value.trim();
+
+        if (!value) return;
+
+        const data = {
+            trait_type_id: parseInt(traitTypeId),
+            value: value
+        };
+
+        try {
+            const response = await fetch('/api/character-trait-values', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showAlert('Значение добавлено!', 'success');
+                valueInput.value = '';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert('Ошибка при добавлении значения', 'error');
+            }
+        } catch (error) {
+            showAlert('Ошибка: ' + error.message, 'error');
+        }
+    });
+});
+
+async function deleteTraitValue(valueId, traitTypeId) {
+    try {
+        const response = await fetch(`/api/character-trait-values/${valueId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Значение удалено', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showAlert('Ошибка при удалении значения', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+async function deleteTraitType(id) {
+    if (!confirm('Вы уверены, что хотите удалить этот тип характеристики? Все связанные значения также будут удалены.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/character-trait-types/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Тип характеристики удален', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении типа характеристики', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}

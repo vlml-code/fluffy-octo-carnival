@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Категории - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Управление Категориями</h2>
+
+<div class="form-container">
+    <h3>Добавить новую категорию</h3>
+    <form id="categoryForm">
+        <div class="form-group">
+            <label for="categoryName">Название категории:</label>
+            <input type="text" id="categoryName" required>
+        </div>
+        <div class="form-group">
+            <label for="categoryDescription">Описание:</label>
+            <textarea id="categoryDescription"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">Добавить категорию</button>
+    </form>
+</div>
+
+<div id="alert" class="hidden"></div>
+
+<h3>Существующие категории</h3>
+<ul class="item-list" id="categoriesList">
+    {% for category in categories %}
+    <li class="item-card" data-id="{{ category.id }}">
+        <h4>{{ category.name }}</h4>
+        <p>{{ category.description or 'Нет описания' }}</p>
+        <div class="item-actions">
+            <button class="btn btn-danger" onclick="deleteCategory({{ category.id }})">Удалить</button>
+        </div>
+    </li>
+    {% else %}
+    <li>Категорий пока нет. Добавьте первую категорию!</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const categoryForm = document.getElementById('categoryForm');
+const alertDiv = document.getElementById('alert');
+
+categoryForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('categoryName').value,
+        description: document.getElementById('categoryDescription').value
+    };
+
+    try {
+        const response = await fetch('/api/categories', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showAlert('Категория успешно добавлена!', 'success');
+            categoryForm.reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при добавлении категории', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+async function deleteCategory(id) {
+    if (!confirm('Вы уверены, что хотите удалить эту категорию? Все связанные подкатегории также будут удалены.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/categories/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('Категория удалена', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Ошибка при удалении категории', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Генерация Промпта - Генератор Промптов{% endblock %}
+
+{% block content %}
+<h2>Генерация Промпта для Рассказа</h2>
+
+<p style="margin-bottom: 2rem;">
+    Нажмите кнопку ниже, чтобы сгенерировать случайный промпт для рассказа на основе данных в базе.
+    Система автоматически выберет случайные значения для всех параметров.
+</p>
+
+<button id="generateBtn" class="btn btn-generate">Сгенерировать промпт</button>
+
+<div id="spinner" class="spinner hidden"></div>
+<div id="alert" class="hidden"></div>
+
+<div id="promptContainer" class="hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>Сгенерированный промпт:</h3>
+        <button id="copyBtn" class="btn btn-primary">Скопировать в буфер обмена</button>
+    </div>
+    <div id="promptDisplay" class="prompt-display"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const generateBtn = document.getElementById('generateBtn');
+const spinner = document.getElementById('spinner');
+const alertDiv = document.getElementById('alert');
+const promptContainer = document.getElementById('promptContainer');
+const promptDisplay = document.getElementById('promptDisplay');
+const copyBtn = document.getElementById('copyBtn');
+
+generateBtn.addEventListener('click', async () => {
+    // Скрыть предыдущий результат
+    promptContainer.classList.add('hidden');
+    alertDiv.classList.add('hidden');
+
+    // Показать спиннер
+    spinner.classList.remove('hidden');
+    generateBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/generate-prompt', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        spinner.classList.add('hidden');
+        generateBtn.disabled = false;
+
+        if (response.ok) {
+            const data = await response.json();
+            displayPrompt(data.prompt);
+        } else {
+            const error = await response.json();
+            showAlert(error.message || 'Ошибка при генерации промпта', 'error');
+        }
+    } catch (error) {
+        spinner.classList.add('hidden');
+        generateBtn.disabled = false;
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+});
+
+function displayPrompt(prompt) {
+    promptDisplay.textContent = prompt;
+    promptContainer.classList.remove('hidden');
+
+    // Прокрутить к промпту
+    promptContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+copyBtn.addEventListener('click', () => {
+    const text = promptDisplay.textContent;
+
+    navigator.clipboard.writeText(text).then(() => {
+        showAlert('Промпт скопирован в буфер обмена!', 'success');
+    }).catch(err => {
+        showAlert('Ошибка копирования: ' + err.message, 'error');
+    });
+});
+
+function showAlert(message, type) {
+    alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
+    alertDiv.textContent = message;
+    alertDiv.classList.remove('hidden');
+    setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+</script>
+{% endblock %}
