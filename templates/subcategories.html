@@ -75,6 +75,16 @@
             <button type="button" class="btn btn-warning hidden" id="cancelBtn" onclick="cancelEdit()">Отмена</button>
         </div>
     </form>
+
+    <div class="import-container">
+        <h4>Импорт подкатегорий из CSV</h4>
+        <p style="font-size: 0.95em; color: #555; margin-top: -0.35rem;">Используются выбранные выше настройки категории, количества персонажей, перспектив и выбранные персонажи.</p>
+        <div class="form-group">
+            <label for="csvFile">CSV-файл (название подкатегории, описание)</label>
+            <input type="file" id="csvFile" accept=".csv">
+        </div>
+        <button type="button" class="btn btn-secondary" id="importBtn">Импортировать CSV</button>
+    </div>
 </div>
 
 <div id="alert" class="hidden"></div>
@@ -117,6 +127,8 @@ const alertDiv = document.getElementById('alert');
 const formTitle = document.getElementById('formTitle');
 const submitBtn = document.getElementById('submitBtn');
 const cancelBtn = document.getElementById('cancelBtn');
+const importBtn = document.getElementById('importBtn');
+const csvFileInput = document.getElementById('csvFile');
 
 let editingId = null;
 let allCharacters = [];
@@ -358,6 +370,85 @@ function toggleCharacterOptions(characterId) {
     }
 }
 
+function parseCsvContent(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rows = [];
+
+    lines.forEach(line => {
+        let parts = line.split(',');
+        if (parts.length < 2) {
+            parts = line.split(';');
+        }
+
+        const name = (parts[0] || '').trim();
+        const description = (parts.slice(1).join(parts.length > 1 ? (line.includes(';') ? ';' : ',') : ',') || '').trim();
+
+        if (name) {
+            rows.push({ name, description });
+        }
+    });
+
+    return rows;
+}
+
+async function importCsv() {
+    if (!csvFileInput.files || csvFileInput.files.length === 0) {
+        showAlert('Выберите CSV-файл для импорта', 'error');
+        return;
+    }
+
+    const categoryValue = document.getElementById('categoryId').value;
+    if (!categoryValue) {
+        showAlert('Сначала выберите категорию для импорта', 'error');
+        return;
+    }
+
+    const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
+
+    const characterSettingsPayload = collectCharacterSettings(selectedCharacterIds);
+
+    const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
+        .map(cb => cb.value);
+
+    try {
+        const text = await csvFileInput.files[0].text();
+        const rows = parseCsvContent(text);
+
+        if (rows.length === 0) {
+            showAlert('CSV-файл не содержит подходящих строк', 'error');
+            return;
+        }
+
+        const payload = {
+            category_id: parseInt(categoryValue),
+            num_characters_min: parseInt(document.getElementById('numCharMin').value),
+            num_characters_max: parseInt(document.getElementById('numCharMax').value),
+            character_ids: selectedCharacterIds,
+            allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо'],
+            character_settings: characterSettingsPayload,
+            rows
+        };
+
+        const response = await fetch('/api/subcategories/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showAlert('Подкатегории успешно импортированы', 'success');
+            csvFileInput.value = '';
+            setTimeout(() => location.reload(), 800);
+        } else {
+            const err = await response.json().catch(() => ({ error: 'Не удалось импортировать CSV' }));
+            showAlert(err.error || 'Не удалось импортировать CSV', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка при чтении CSV: ' + error.message, 'error');
+    }
+}
+
 async function deleteSubcategory(id) {
     if (!confirm('Вы уверены, что хотите удалить эту подкатегорию?')) {
         return;
@@ -405,5 +496,8 @@ function showAlert(message, type) {
 
 // Загружаем персонажей при загрузке страницы
 loadCharacters();
+if (importBtn) {
+    importBtn.addEventListener('click', importCsv);
+}
 </script>
 {% endblock %}

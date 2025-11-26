@@ -191,6 +191,14 @@ input[type="checkbox"] {
     margin-bottom: 0;
 }
 
+.import-container {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border: 1px dashed #d1d5db;
+    border-radius: 10px;
+    background: #f9fafb;
+}
+
 .category-select {
     border: 1px solid #e5e5e5;
     border-radius: 10px;

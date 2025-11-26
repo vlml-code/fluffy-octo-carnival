@@ -226,6 +226,64 @@ def api_copy_subcategory(id):
     return jsonify(new_subcategory.to_dict()), 201
 
 
+@app.route('/api/subcategories/import', methods=['POST'])
+def api_import_subcategories():
+    data = request.json or {}
+    rows = data.get('rows', []) or []
+    if not rows:
+        return jsonify({'error': 'Не переданы строки CSV для импорта'}), 400
+
+    category_id = data.get('category_id')
+    if not category_id:
+        return jsonify({'error': 'Требуется категория для импорта'}), 400
+
+    min_chars = data.get('num_characters_min', 1)
+    max_chars = data.get('num_characters_max', 1)
+    character_ids = data.get('character_ids', []) or []
+    perspectives = data.get('allowed_perspectives', ['третье_лицо']) or ['третье_лицо']
+
+    settings = data.get('character_settings', []) or []
+    if settings:
+        selected_ids = set(character_ids)
+        settings = [s for s in settings if s.get('character_id') in selected_ids]
+
+    created = []
+
+    for row in rows:
+        name = (row.get('name') or '').strip()
+        description = (row.get('description') or '').strip()
+        if not name:
+            continue
+
+        subcategory = Subcategory(
+            category_id=category_id,
+            name=name,
+            description=description,
+            num_characters_min=min_chars,
+            num_characters_max=max_chars,
+        )
+
+        subcategory.set_character_specs(data.get('character_specs', []))
+        subcategory.set_allowed_perspectives(perspectives)
+        subcategory.set_character_ids(character_ids)
+        subcategory.set_character_settings(settings)
+
+        for char_id in character_ids:
+            character = Character.query.get(char_id)
+            if character:
+                subcategory.characters.append(character)
+
+        db.session.add(subcategory)
+        created.append(subcategory)
+
+    if not created:
+        return jsonify({'error': 'Не удалось создать ни одной подкатегории'}), 400
+
+    db.session.commit()
+
+    return jsonify([s.to_dict() for s in created]), 201
+
+
 # Character Trait Types API
 @app.route('/api/character-trait-types', methods=['GET', 'POST'])
 def api_character_trait_types():
