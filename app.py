@@ -270,8 +270,6 @@ def api_characters():
             name=data['name'],
             description=data.get('description', ''),
             gender=data['gender'],
-            age_min=data.get('age_min', 18),
-            age_max=data.get('age_max', 60),
             can_have_initiative=data.get('can_have_initiative', True)
         )
         db.session.add(character)
@@ -296,8 +294,6 @@ def api_character(id):
         character.name = data['name']
         character.description = data.get('description', '')
         character.gender = data['gender']
-        character.age_min = data.get('age_min', 18)
-        character.age_max = data.get('age_max', 60)
         character.can_have_initiative = data.get('can_have_initiative', True)
         db.session.commit()
         return jsonify(character.to_dict())
@@ -488,40 +484,30 @@ def init_db():
             name="Главный герой",
             description="Молодой человек, впервые влюбляющийся",
             gender="мужской",
-            age_min=16,
-            age_max=20,
             can_have_initiative=True
         )
         char2 = Character(
             name="Возлюбленная",
             description="Девушка, в которую влюбляется главный герой",
             gender="женский",
-            age_min=16,
-            age_max=20,
             can_have_initiative=True
         )
         char3 = Character(
             name="Лидер экспедиции",
             description="Опытный искатель приключений, возглавляющий группу",
             gender="мужской",
-            age_min=25,
-            age_max=45,
             can_have_initiative=True
         )
         char4 = Character(
             name="Эксперт",
             description="Специалист по древним артефактам",
             gender="женский",
-            age_min=25,
-            age_max=45,
             can_have_initiative=True
         )
         char5 = Character(
             name="Новичок",
             description="Молодой участник экспедиции без опыта",
             gender="мужской",
-            age_min=18,
-            age_max=30,
             can_have_initiative=False
         )
 
@@ -563,32 +549,24 @@ def init_db():
             name="Космический исследователь",
             description="Отважный исследователь неизведанных миров",
             gender="мужской",
-            age_min=30,
-            age_max=50,
             can_have_initiative=True
         )
         char7 = Character(
             name="Инопланетянин",
             description="Представитель внеземной цивилизации",
             gender="небинарный",
-            age_min=100,
-            age_max=1000,
             can_have_initiative=True
         )
         char8 = Character(
             name="Маг",
             description="Владеющий древней магией",
             gender="мужской",
-            age_min=25,
-            age_max=60,
             can_have_initiative=True
         )
         char9 = Character(
             name="Призрак",
             description="Дух, привязанный к определенному месту",
             gender="женский",
-            age_min=20,
-            age_max=40,
             can_have_initiative=False
         )
 

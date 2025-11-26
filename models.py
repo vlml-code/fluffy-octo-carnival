@@ -48,7 +48,7 @@ class Subcategory(db.Model):
     num_characters_max = db.Column(db.Integer, default=1)
 
     # JSON структура для определения персонажей (legacy, для обратной совместимости)
-    # Формат: [{"gender": "м/ж/небинарный", "age_min": int, "age_max": int, "can_have_initiative": bool}]
+    # Формат: [{"gender": "м/ж/небинарный", "allowed_age_groups": [str], "can_have_initiative": bool}]
     character_specs = db.Column(db.Text, default='[]')
 
     # JSON список ID персонажей из таблицы characters
@@ -118,8 +118,6 @@ class Character(db.Model):
     name = db.Column(db.String(200), nullable=False)  # Роль/название персонажа
     description = db.Column(db.Text)  # Описание роли
     gender = db.Column(db.String(50), nullable=False)  # мужской, женский, небинарный
-    age_min = db.Column(db.Integer, default=18)
-    age_max = db.Column(db.Integer, default=60)
     can_have_initiative = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -132,8 +130,6 @@ class Character(db.Model):
             'name': self.name,
             'description': self.description,
             'gender': self.gender,
-            'age_min': self.age_min,
-            'age_max': self.age_max,
             'can_have_initiative': self.can_have_initiative,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

@@ -29,16 +29,6 @@
                     <option value="небинарный">Небинарный</option>
                 </select>
             </div>
-
-            <div class="form-group">
-                <label for="ageMin">Минимальный возраст:</label>
-                <input type="number" id="ageMin" min="1" max="120" value="18" required>
-            </div>
-
-            <div class="form-group">
-                <label for="ageMax">Максимальный возраст:</label>
-                <input type="number" id="ageMax" min="1" max="120" value="60" required>
-            </div>
         </div>
 
         <div class="form-group">
@@ -65,7 +55,6 @@
         <p>{{ character.description or 'Нет описания' }}</p>
         <p>
             <strong>Пол:</strong> {{ character.gender }} |
-            <strong>Возраст:</strong> {{ character.age_min }} - {{ character.age_max }} |
             <strong>Инициатива:</strong> {{ 'Да' if character.can_have_initiative else 'Нет' }}
         </p>
         <div class="item-actions">
@@ -96,8 +85,6 @@ characterForm.addEventListener('submit', async (e) => {
         name: document.getElementById('characterName').value,
         description: document.getElementById('characterDescription').value,
         gender: document.getElementById('characterGender').value,
-        age_min: parseInt(document.getElementById('ageMin').value),
-        age_max: parseInt(document.getElementById('ageMax').value),
         can_have_initiative: document.getElementById('canHaveInitiative').checked
     };
 
@@ -146,8 +133,6 @@ async function editCharacter(id) {
             document.getElementById('characterName').value = character.name;
             document.getElementById('characterDescription').value = character.description || '';
             document.getElementById('characterGender').value = character.gender;
-            document.getElementById('ageMin').value = character.age_min;
-            document.getElementById('ageMax').value = character.age_max;
             document.getElementById('canHaveInitiative').checked = character.can_have_initiative;
 
             // Прокрутка к форме

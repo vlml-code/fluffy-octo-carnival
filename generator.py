@@ -241,7 +241,7 @@ class StoryPromptGenerator:
                     "can_have_initiative": char_template.can_have_initiative
                 }
 
-                char_age = self._choose_age(char_template, setting, primary_age)
+                char_age = self._choose_age(setting, primary_age)
                 if setting and setting.get("is_primary"):
                     primary_age = char_age
                 elif setting and setting.get("follow_primary_age") and primary_age is not None:
@@ -263,8 +263,7 @@ class StoryPromptGenerator:
                 # Если нет спецификации, создаем один стандартный персонаж
                 char_specs = [{
                     "gender": random.choice(["мужской", "женский", "небинарный"]),
-                    "age_min": 18,
-                    "age_max": 60,
+                    "allowed_age_groups": list(self.AGE_GROUP_RANGES.keys()),
                     "can_have_initiative": True
                 }]
 
@@ -272,9 +271,14 @@ class StoryPromptGenerator:
             for i in range(num_chars):
                 spec = char_specs[i % len(char_specs)]
 
+                allowed_groups = [
+                    group for group in spec.get("allowed_age_groups", [])
+                    if group in self.AGE_GROUP_RANGES
+                ]
+
                 char = {
                     "gender": spec.get("gender", "небинарный"),
-                    "age": random.randint(spec.get("age_min", 18), spec.get("age_max", 60)),
+                    "age": self._random_age_from_groups(allowed_groups),
                     "role": spec.get("role"),
                     "role_description": spec.get("role_description"),
                     "has_initiative": False,
@@ -313,7 +317,7 @@ class StoryPromptGenerator:
 
         return characters
 
-    def _choose_age(self, char_template, setting, primary_age):
+    def _choose_age(self, setting, primary_age):
         """Определяет возраст персонажа с учетом настроек"""
         if setting:
             if setting.get("follow_primary_age") and primary_age is not None and not setting.get("is_primary"):
@@ -324,11 +328,16 @@ class StoryPromptGenerator:
                 if group in self.AGE_GROUP_RANGES
             ]
             if allowed_groups:
-                chosen_group = random.choice(allowed_groups)
-                age_min, age_max = self.AGE_GROUP_RANGES[chosen_group]
-                return random.randint(age_min, age_max)
+                return self._random_age_from_groups(allowed_groups)
 
-        return random.randint(char_template.age_min, char_template.age_max)
+        return self._random_age_from_groups()
+
+    def _random_age_from_groups(self, allowed_groups=None):
+        """Возвращает случайный возраст из указанных возрастных групп"""
+        groups = allowed_groups or list(self.AGE_GROUP_RANGES.keys())
+        chosen_group = random.choice(groups)
+        age_min, age_max = self.AGE_GROUP_RANGES[chosen_group]
+        return random.randint(age_min, age_max)
 
     def _assign_character_traits(self, characters):
         """Назначает случайные характеристики персонажам"""

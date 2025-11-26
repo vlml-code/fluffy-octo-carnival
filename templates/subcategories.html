@@ -93,7 +93,7 @@
         <p><strong>Персонажи:</strong></p>
         <ul style="margin-left: 1.5rem;">
             {% for character in subcategory.characters %}
-            <li>{{ character.name }} ({{ character.gender }}, {{ character.age_min }}-{{ character.age_max }} лет)</li>
+            <li>{{ character.name }} ({{ character.gender }})</li>
             {% endfor %}
         </ul>
         {% endif %}
@@ -194,7 +194,7 @@ function renderCharacterSelection(selectedIds = [], savedSettings = []) {
                                 <input type="checkbox" id="follow-${char.id}" ${followsPrimary ? 'checked' : ''}> Следует возрасту основного
                             </label>
                         </div>
-                        <div style="color: #555; font-size: 0.95em;">${char.gender}, ${char.age_min}-${char.age_max} лет</div>
+                        <div style="color: #555; font-size: 0.95em;">${char.gender}</div>
                         ${char.description ? `<div style=\"font-size: 0.9em; color: #666; margin-top: 0.25rem;\">${char.description}</div>` : ''}
                         <div class="age-group-grid">
                             ${ageGroupCheckboxes}
