@@ -487,8 +487,13 @@ def api_dialogue_style(id):
 def api_generate_prompt():
     data = request.json or {}
     premium = data.get('premium', False)
+    category_ids = data.get('category_ids') or []
+    try:
+        category_ids = [int(c_id) for c_id in category_ids]
+    except (TypeError, ValueError):
+        category_ids = []
     generator = StoryPromptGenerator(db.session)
-    prompt = generator.generate_prompt(premium=premium)
+    prompt = generator.generate_prompt(premium=premium, category_ids=category_ids)
     return jsonify({'prompt': prompt})
 
 

@@ -191,6 +191,41 @@ input[type="checkbox"] {
     margin-bottom: 0;
 }
 
+.category-select {
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: #fdfdfd;
+}
+
+.category-select__header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.category-select__hint {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.category-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+}
+
+.category-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-weight: 500;
+    color: #444;
+}
+
 /* Tables & Lists */
 .item-list {
     list-style: none;

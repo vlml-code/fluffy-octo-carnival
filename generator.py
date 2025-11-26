@@ -21,7 +21,7 @@ class StoryPromptGenerator:
     def __init__(self, db_session):
         self.db = db_session
 
-    def generate_prompt(self, premium=None):
+    def generate_prompt(self, premium=None, category_ids=None):
         """Генерирует полный промпт для рассказа
 
         Args:
@@ -32,7 +32,7 @@ class StoryPromptGenerator:
         prompt_parts.append("Твоя задача написать рассказ.\n")
 
         # 1. Выбор категории
-        category = self._select_random_category(premium=premium)
+        category = self._select_random_category(premium=premium, category_ids=category_ids)
         if not category:
             premium_text = "премиум" if premium else "не-премиум"
             return f"Ошибка: нет {premium_text} категорий в базе данных"
@@ -96,7 +96,11 @@ class StoryPromptGenerator:
         prompt_parts.append(perspective_type)
 
         # 5. Второстепенные элементы
-        secondary_elements = self._select_secondary_elements(category, premium=premium)
+        secondary_elements = self._select_secondary_elements(
+            category,
+            premium=premium,
+            main_subcategory=subcategory,
+        )
         if secondary_elements:
             prompt_parts.append(f"\n## ВТОРОСТЕПЕННЫЕ ЭЛЕМЕНТЫ")
             prompt_parts.append("(Опциональные элементы, которые могут быть включены в историю как дополнительные сюжетные линии, но не являются основным фокусом)")
@@ -133,16 +137,21 @@ class StoryPromptGenerator:
 
         return "\n".join(prompt_parts)
 
-    def _select_random_category(self, premium=None):
+    def _select_random_category(self, premium=None, category_ids=None):
         """Выбирает случайную категорию
 
         Args:
             premium: None (все категории), False (только не-премиум), True (только премиум)
+            category_ids: список идентификаторов допустимых категорий
         """
-        if premium is None:
-            categories = Category.query.all()
-        else:
-            categories = Category.query.filter_by(is_premium=premium).all()
+        query = Category.query
+
+        if category_ids:
+            query = query.filter(Category.id.in_(category_ids))
+        elif premium is not None:
+            query = query.filter_by(is_premium=premium)
+
+        categories = query.all()
         return random.choice(categories) if categories else None
 
     def _select_random_subcategory(self, category):
@@ -150,41 +159,39 @@ class StoryPromptGenerator:
         subcategories = Subcategory.query.filter_by(category_id=category.id).all()
         return random.choice(subcategories) if subcategories else None
 
-    def _select_secondary_elements(self, main_category, premium=None):
-        """Выбирает 1-2 второстепенных элемента из других категорий
+    def _select_secondary_elements(self, main_category, premium=None, main_subcategory=None):
+        """Выбирает 1-2 второстепенных элемента внутри основной категории
 
         Args:
-            main_category: Основная категория (исключается из выбора)
+            main_category: Основная категория
             premium: None (все категории), False (только не-премиум), True (только премиум)
+            main_subcategory: Основная подкатегория (исключается из выбора)
 
         Returns:
             list: Список словарей с информацией о второстепенных элементах
         """
-        # Получаем все категории кроме основной
-        query = Category.query.filter(Category.id != main_category.id)
-        if premium is not None:
-            query = query.filter_by(is_premium=premium)
-        other_categories = query.all()
+        # Получаем подкатегории только внутри основной категории
+        subcategory_query = Subcategory.query.filter_by(category_id=main_category.id)
+        if main_subcategory is not None:
+            subcategory_query = subcategory_query.filter(Subcategory.id != main_subcategory.id)
 
-        if not other_categories:
+        subcategories = subcategory_query.all()
+
+        if not subcategories:
             return []
 
         # Выбираем 1-2 второстепенных элемента
         num_elements = random.randint(1, 2)
 
         secondary_elements = []
-        selected_categories = random.sample(other_categories, min(num_elements, len(other_categories)))
+        selected_subcategories = random.sample(subcategories, min(num_elements, len(subcategories)))
 
-        for category in selected_categories:
-            # Выбираем случайную подкатегорию из этой категории
-            subcategories = Subcategory.query.filter_by(category_id=category.id).all()
-            if subcategories:
-                subcategory = random.choice(subcategories)
-                secondary_elements.append({
-                    'category': category.name,
-                    'subcategory': subcategory.name,
-                    'description': subcategory.description
-                })
+        for subcategory in selected_subcategories:
+            secondary_elements.append({
+                'category': main_category.name,
+                'subcategory': subcategory.name,
+                'description': subcategory.description
+            })
 
         return secondary_elements
 
