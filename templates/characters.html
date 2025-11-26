@@ -20,6 +20,11 @@
             <textarea id="characterDescription" placeholder="Опишите роль персонажа в сюжете"></textarea>
         </div>
 
+        <div class="form-group">
+            <label>Допустимые возрастные группы:</label>
+            <div class="age-group-grid" id="ageGroupsContainer"></div>
+        </div>
+
         <div class="spec-row">
             <div class="form-group">
                 <label for="characterGender">Пол:</label>
@@ -56,6 +61,9 @@
         <p>
             <strong>Пол:</strong> {{ character.gender }} |
             <strong>Инициатива:</strong> {{ 'Да' if character.can_have_initiative else 'Нет' }}
+            {% if character.allowed_age_groups %}|
+            <strong>Возрастные группы:</strong> {{ ', '.join(character.allowed_age_groups) }}
+            {% endif %}
         </p>
         <div class="item-actions">
             <button class="btn btn-warning" onclick="editCharacter({{ character.id }})">Редактировать</button>
@@ -75,6 +83,28 @@ const alertDiv = document.getElementById('alert');
 const formTitle = document.getElementById('formTitle');
 const submitBtn = document.getElementById('submitBtn');
 const cancelBtn = document.getElementById('cancelBtn');
+const ageGroups = [
+    { key: 'ребенок', label: 'Ребенок (8-11)' },
+    { key: 'подросток', label: 'Подросток (12-15)' },
+    { key: 'юный', label: 'Юный (16-18)' },
+    { key: 'молодой', label: 'Молодой (19-23)' },
+    { key: 'средний', label: 'Средний (24-35)' },
+    { key: 'зрелый', label: 'Зрелый (36-55)' },
+    { key: 'старый', label: 'Старый (56-70)' }
+];
+
+function renderAgeGroupCheckboxes(selected = null) {
+    const container = document.getElementById('ageGroupsContainer');
+    const chosen = selected && selected.length ? selected : ageGroups.map(g => g.key);
+    container.innerHTML = ageGroups.map(group => `
+        <label class="age-chip">
+            <input type="checkbox" name="allowed-age" value="${group.key}" ${chosen.includes(group.key) ? 'checked' : ''}>
+            ${group.label}
+        </label>
+    `).join('');
+}
+
+renderAgeGroupCheckboxes();
 
 let editingId = null;
 
@@ -85,7 +115,8 @@ characterForm.addEventListener('submit', async (e) => {
         name: document.getElementById('characterName').value,
         description: document.getElementById('characterDescription').value,
         gender: document.getElementById('characterGender').value,
-        can_have_initiative: document.getElementById('canHaveInitiative').checked
+        can_have_initiative: document.getElementById('canHaveInitiative').checked,
+        allowed_age_groups: Array.from(document.querySelectorAll('input[name="allowed-age"]:checked')).map(cb => cb.value)
     };
 
     try {
@@ -134,6 +165,7 @@ async function editCharacter(id) {
             document.getElementById('characterDescription').value = character.description || '';
             document.getElementById('characterGender').value = character.gender;
             document.getElementById('canHaveInitiative').checked = character.can_have_initiative;
+            renderAgeGroupCheckboxes(character.allowed_age_groups || []);
 
             // Прокрутка к форме
             characterForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -149,6 +181,7 @@ function cancelEdit() {
     submitBtn.textContent = 'Добавить персонажа';
     cancelBtn.classList.add('hidden');
     characterForm.reset();
+    renderAgeGroupCheckboxes();
 }
 
 async function deleteCharacter(id) {

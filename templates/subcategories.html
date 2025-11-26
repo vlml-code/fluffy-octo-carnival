@@ -129,6 +129,11 @@ const ageGroups = [
     { key: 'старый', label: 'Старый (56-70)' }
 ];
 
+const ageLabelsByKey = ageGroups.reduce((acc, item) => {
+    acc[item.key] = item.label;
+    return acc;
+}, {});
+
 // Хранение настроек персонажей для подкатегории
 let characterSettings = {};
 
@@ -169,16 +174,9 @@ function renderCharacterSelection(selectedIds = [], savedSettings = []) {
         const isChecked = selectedIds.includes(char.id);
         const isPrimary = saved.is_primary || primaryId === char.id;
         const followsPrimary = saved.follow_primary_age || false;
-        const selectedGroups = saved.allowed_age_groups && saved.allowed_age_groups.length > 0
-            ? saved.allowed_age_groups
-            : ageGroups.map(group => group.key);
-
-        const ageGroupCheckboxes = ageGroups.map(group => `
-            <label class="age-chip">
-                <input type="checkbox" name="age-group-${char.id}" value="${group.key}" ${selectedGroups.includes(group.key) ? 'checked' : ''}>
-                ${group.label}
-            </label>
-        `).join('');
+        const ageGroupsText = (char.allowed_age_groups && char.allowed_age_groups.length)
+            ? char.allowed_age_groups.map(key => ageLabelsByKey[key] || key).join(', ')
+            : 'Все доступные возрастные группы';
 
         return `
             <div class="character-card" data-id="${char.id}">
@@ -196,9 +194,7 @@ function renderCharacterSelection(selectedIds = [], savedSettings = []) {
                         </div>
                         <div style="color: #555; font-size: 0.95em;">${char.gender}</div>
                         ${char.description ? `<div style=\"font-size: 0.9em; color: #666; margin-top: 0.25rem;\">${char.description}</div>` : ''}
-                        <div class="age-group-grid">
-                            ${ageGroupCheckboxes}
-                        </div>
+                        <div style="font-size: 0.9em; color: #444; margin-top: 0.25rem;">Допустимые возрастные группы: ${ageGroupsText}</div>
                     </div>
                 </label>
             </div>
@@ -318,12 +314,9 @@ function collectCharacterSettings(selectedIds) {
     const primaryId = primaryInput ? parseInt(primaryInput.value) : null;
 
     return selectedIds.map(id => {
-        const allowedAgeGroups = Array.from(document.querySelectorAll(`input[name="age-group-${id}"]:checked`))
-            .map(cb => cb.value);
         const followsPrimary = document.getElementById(`follow-${id}`);
         return {
             character_id: id,
-            allowed_age_groups: allowedAgeGroups,
             is_primary: primaryId === id,
             follow_primary_age: primaryId !== id && followsPrimary ? followsPrimary.checked : false
         };
@@ -336,7 +329,7 @@ function toggleCharacterOptions(characterId) {
     const container = checkbox ? checkbox.closest('.character-card') : null;
     if (!container) return;
 
-    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"], input[name^="age-group-"]');
+    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"]');
     inputs.forEach(input => {
         if (input === checkbox) return;
         input.disabled = !isChecked;

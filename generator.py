@@ -241,11 +241,9 @@ class StoryPromptGenerator:
                     "can_have_initiative": char_template.can_have_initiative
                 }
 
-                char_age = self._choose_age(setting, primary_age)
+                char_age = self._choose_age(char_template, setting, primary_age)
                 if setting and setting.get("is_primary"):
                     primary_age = char_age
-                elif setting and setting.get("follow_primary_age") and primary_age is not None:
-                    char_age = primary_age
 
                 char["age"] = char_age
 
@@ -317,18 +315,29 @@ class StoryPromptGenerator:
 
         return characters
 
-    def _choose_age(self, setting, primary_age):
+    def _choose_age(self, char_template, setting, primary_age):
         """Определяет возраст персонажа с учетом настроек"""
-        if setting:
-            if setting.get("follow_primary_age") and primary_age is not None and not setting.get("is_primary"):
-                return primary_age
+        if setting and setting.get("follow_primary_age") and primary_age is not None and not setting.get("is_primary"):
+            return primary_age
 
+        allowed_groups = []
+        if setting:
             allowed_groups = [
                 group for group in setting.get("allowed_age_groups", [])
                 if group in self.AGE_GROUP_RANGES
             ]
-            if allowed_groups:
-                return self._random_age_from_groups(allowed_groups)
+
+        if not allowed_groups and char_template:
+            try:
+                allowed_groups = [
+                    group for group in char_template.get_allowed_age_groups()
+                    if group in self.AGE_GROUP_RANGES
+                ]
+            except AttributeError:
+                allowed_groups = []
+
+        if allowed_groups:
+            return self._random_age_from_groups(allowed_groups)
 
         return self._random_age_from_groups()
 

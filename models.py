@@ -55,7 +55,7 @@ class Subcategory(db.Model):
     character_ids = db.Column(db.Text, default='[]')
 
     # JSON настройки выбранных персонажей
-    # Формат: [{"character_id": int, "allowed_age_groups": [str], "is_primary": bool, "follow_primary_age": bool}]
+    # Формат: [{"character_id": int, "is_primary": bool, "follow_primary_age": bool}] (allowed_age_groups поддерживается для обратной совместимости)
     character_settings = db.Column(db.Text, default='[]')
 
     # Настройки перспективы
@@ -119,10 +119,33 @@ class Character(db.Model):
     description = db.Column(db.Text)  # Описание роли
     gender = db.Column(db.String(50), nullable=False)  # мужской, женский, небинарный
     can_have_initiative = db.Column(db.Boolean, default=True)
+    allowed_age_groups = db.Column(
+        db.Text,
+        default=json.dumps([
+            "ребенок",
+            "подросток",
+            "юный",
+            "молодой",
+            "средний",
+            "зрелый",
+            "старый",
+        ], ensure_ascii=False),
+    )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Связь с подкатегориями (many-to-many)
     subcategories = db.relationship('Subcategory', secondary=subcategory_characters, back_populates='characters')
+
+    def get_allowed_age_groups(self):
+        if self.allowed_age_groups:
+            try:
+                return json.loads(self.allowed_age_groups)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def set_allowed_age_groups(self, groups):
+        self.allowed_age_groups = json.dumps(groups or [], ensure_ascii=False)
 
     def to_dict(self):
         return {
@@ -131,6 +154,7 @@ class Character(db.Model):
             'description': self.description,
             'gender': self.gender,
             'can_have_initiative': self.can_have_initiative,
+            'allowed_age_groups': self.get_allowed_age_groups(),
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

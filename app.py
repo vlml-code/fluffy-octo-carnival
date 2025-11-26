@@ -270,7 +270,11 @@ def api_characters():
             name=data['name'],
             description=data.get('description', ''),
             gender=data['gender'],
-            can_have_initiative=data.get('can_have_initiative', True)
+            can_have_initiative=data.get('can_have_initiative', True),
+            allowed_age_groups=json.dumps(
+                data.get('allowed_age_groups', []),
+                ensure_ascii=False
+            )
         )
         db.session.add(character)
         db.session.commit()
@@ -295,6 +299,11 @@ def api_character(id):
         character.description = data.get('description', '')
         character.gender = data['gender']
         character.can_have_initiative = data.get('can_have_initiative', True)
+        if 'allowed_age_groups' in data:
+            character.allowed_age_groups = json.dumps(
+                data.get('allowed_age_groups', []),
+                ensure_ascii=False
+            )
         db.session.commit()
         return jsonify(character.to_dict())
 
