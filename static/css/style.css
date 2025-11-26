@@ -122,6 +122,14 @@ h3 {
     background-color: #e68900;
 }
 
+.btn-secondary {
+    background-color: #607d8b;
+}
+
+.btn-secondary:hover {
+    background-color: #546e7a;
+}
+
 .btn-generate {
     font-size: 1.3rem;
     padding: 1rem 2rem;

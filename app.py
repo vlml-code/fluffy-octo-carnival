@@ -200,6 +200,32 @@ def api_subcategory(id):
     return jsonify(subcategory.to_dict())
 
 
+@app.route('/api/subcategories/<int:id>/copy', methods=['POST'])
+def api_copy_subcategory(id):
+    source = Subcategory.query.get_or_404(id)
+
+    new_subcategory = Subcategory(
+        category_id=source.category_id,
+        name=f"{source.name} (копия)",
+        description=source.description,
+        num_characters_min=source.num_characters_min,
+        num_characters_max=source.num_characters_max,
+    )
+
+    new_subcategory.set_character_specs(source.get_character_specs())
+    new_subcategory.set_allowed_perspectives(source.get_allowed_perspectives())
+    new_subcategory.set_character_ids(source.get_character_ids())
+    new_subcategory.set_character_settings(source.get_character_settings())
+
+    for character in source.characters:
+        new_subcategory.characters.append(character)
+
+    db.session.add(new_subcategory)
+    db.session.commit()
+
+    return jsonify(new_subcategory.to_dict()), 201
+
+
 # Character Trait Types API
 @app.route('/api/character-trait-types', methods=['GET', 'POST'])
 def api_character_trait_types():

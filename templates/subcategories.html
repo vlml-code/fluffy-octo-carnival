@@ -100,6 +100,7 @@
 
         <div class="item-actions">
             <button class="btn btn-warning" onclick="editSubcategory({{ subcategory.id }})">Редактировать</button>
+            <button class="btn btn-secondary" onclick="copySubcategory({{ subcategory.id }})">Копировать</button>
             <button class="btn btn-danger" onclick="deleteSubcategory({{ subcategory.id }})">Удалить</button>
         </div>
     </li>
@@ -372,6 +373,23 @@ async function deleteSubcategory(id) {
             setTimeout(() => location.reload(), 1000);
         } else {
             showAlert('Ошибка при удалении подкатегории', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+async function copySubcategory(id) {
+    try {
+        const response = await fetch(`/api/subcategories/${id}/copy`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showAlert('Подкатегория скопирована', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showAlert('Не удалось скопировать подкатегорию', 'error');
         }
     } catch (error) {
         showAlert('Ошибка: ' + error.message, 'error');
