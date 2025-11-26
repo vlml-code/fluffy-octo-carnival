@@ -6,8 +6,10 @@
 <h2>Управление Подкатегориями</h2>
 
 <div class="form-container">
-    <h3>Добавить новую подкатегорию</h3>
+    <h3 id="formTitle">Добавить новую подкатегорию</h3>
     <form id="subcategoryForm">
+        <input type="hidden" id="subcategoryId">
+
         <div class="form-group">
             <label for="categoryId">Категория:</label>
             <select id="categoryId" required>
@@ -41,43 +43,13 @@
         </div>
 
         <div class="form-group">
-            <label>Спецификации персонажей:</label>
-            <div id="characterSpecs">
-                <div class="character-spec">
-                    <button type="button" class="btn btn-danger" onclick="removeSpec(this)" style="float: right; padding: 0.3rem 0.8rem;">×</button>
-                    <div style="margin-bottom: 0.5rem;">
-                        <label>Роль персонажа:</label>
-                        <input type="text" class="spec-role" placeholder="Например: Главный герой, Антагонист" style="width: 100%; margin-bottom: 0.5rem;">
-                        <label>Описание роли:</label>
-                        <input type="text" class="spec-role-description" placeholder="Краткое описание роли в сюжете" style="width: 100%;">
-                    </div>
-                    <div class="spec-row">
-                        <div>
-                            <label>Пол:</label>
-                            <select class="spec-gender">
-                                <option value="мужской">Мужской</option>
-                                <option value="женский">Женский</option>
-                                <option value="небинарный">Небинарный</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Мин. возраст:</label>
-                            <input type="number" class="spec-age-min" value="18" min="1" max="120">
-                        </div>
-                        <div>
-                            <label>Макс. возраст:</label>
-                            <input type="number" class="spec-age-max" value="60" min="1" max="120">
-                        </div>
-                        <div>
-                            <label>
-                                <input type="checkbox" class="spec-initiative" checked>
-                                Может иметь инициативу
-                            </label>
-                        </div>
-                    </div>
-                </div>
+            <label>Персонажи (выберите из существующих):</label>
+            <div id="characterSelection" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 1rem; border-radius: 5px;">
+                <!-- Персонажи будут загружены динамически -->
             </div>
-            <button type="button" class="btn btn-primary" onclick="addSpec()">+ Добавить спецификацию</button>
+            <p style="font-size: 0.9em; color: #666; margin-top: 0.5rem;">
+                Выберите персонажей для этой подкатегории. <a href="{{ url_for('characters_page') }}" target="_blank">Создать нового персонажа</a>
+            </p>
         </div>
 
         <div class="form-group">
@@ -98,7 +70,10 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-success">Добавить подкатегорию</button>
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-success" id="submitBtn">Добавить подкатегорию</button>
+            <button type="button" class="btn btn-warning hidden" id="cancelBtn" onclick="cancelEdit()">Отмена</button>
+        </div>
     </form>
 </div>
 
@@ -113,7 +88,18 @@
         <p>{{ subcategory.description or 'Нет описания' }}</p>
         <p><strong>Количество персонажей:</strong> {{ subcategory.num_characters_min }} - {{ subcategory.num_characters_max }}</p>
         <p><strong>Перспективы:</strong> {{ subcategory.get_allowed_perspectives()|join(', ') }}</p>
+
+        {% if subcategory.characters %}
+        <p><strong>Персонажи:</strong></p>
+        <ul style="margin-left: 1.5rem;">
+            {% for character in subcategory.characters %}
+            <li>{{ character.name }} ({{ character.gender }}, {{ character.age_min }}-{{ character.age_max }} лет)</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
         <div class="item-actions">
+            <button class="btn btn-warning" onclick="editSubcategory({{ subcategory.id }})">Редактировать</button>
             <button class="btn btn-danger" onclick="deleteSubcategory({{ subcategory.id }})">Удалить</button>
         </div>
     </li>
@@ -127,87 +113,53 @@
 <script>
 const subcategoryForm = document.getElementById('subcategoryForm');
 const alertDiv = document.getElementById('alert');
+const formTitle = document.getElementById('formTitle');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelBtn');
 
-function addSpec() {
-    const specsContainer = document.getElementById('characterSpecs');
-    const newSpec = document.createElement('div');
-    newSpec.className = 'character-spec';
-    newSpec.innerHTML = `
-        <button type="button" class="btn btn-danger" onclick="removeSpec(this)" style="float: right; padding: 0.3rem 0.8rem;">×</button>
-        <div style="margin-bottom: 0.5rem;">
-            <label>Роль персонажа:</label>
-            <input type="text" class="spec-role" placeholder="Например: Главный герой, Антагонист" style="width: 100%; margin-bottom: 0.5rem;">
-            <label>Описание роли:</label>
-            <input type="text" class="spec-role-description" placeholder="Краткое описание роли в сюжете" style="width: 100%;">
-        </div>
-        <div class="spec-row">
-            <div>
-                <label>Пол:</label>
-                <select class="spec-gender">
-                    <option value="мужской">Мужской</option>
-                    <option value="женский">Женский</option>
-                    <option value="небинарный">Небинарный</option>
-                </select>
-            </div>
-            <div>
-                <label>Мин. возраст:</label>
-                <input type="number" class="spec-age-min" value="18" min="1" max="120">
-            </div>
-            <div>
-                <label>Макс. возраст:</label>
-                <input type="number" class="spec-age-max" value="60" min="1" max="120">
-            </div>
-            <div>
-                <label>
-                    <input type="checkbox" class="spec-initiative" checked>
-                    Может иметь инициативу
-                </label>
-            </div>
-        </div>
-    `;
-    specsContainer.appendChild(newSpec);
+let editingId = null;
+let allCharacters = [];
+
+// Загрузка персонажей при загрузке страницы
+async function loadCharacters() {
+    try {
+        const response = await fetch('/api/characters');
+        if (response.ok) {
+            allCharacters = await response.json();
+            renderCharacterSelection();
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки персонажей:', error);
+    }
 }
 
-function removeSpec(button) {
-    const specsContainer = document.getElementById('characterSpecs');
-    if (specsContainer.children.length > 1) {
-        button.parentElement.remove();
-    } else {
-        alert('Должна быть хотя бы одна спецификация персонажа');
+function renderCharacterSelection(selectedIds = []) {
+    const container = document.getElementById('characterSelection');
+
+    if (allCharacters.length === 0) {
+        container.innerHTML = '<p style="color: #999;">Нет доступных персонажей. <a href="/characters">Создайте первого персонажа</a></p>';
+        return;
     }
+
+    container.innerHTML = allCharacters.map(char => `
+        <label style="display: block; padding: 0.5rem; border-bottom: 1px solid #eee;">
+            <input type="checkbox" class="character-checkbox" value="${char.id}" ${selectedIds.includes(char.id) ? 'checked' : ''}>
+            <strong>${char.name}</strong> - ${char.gender}, ${char.age_min}-${char.age_max} лет
+            ${char.description ? `<br><span style="font-size: 0.9em; color: #666;">${char.description}</span>` : ''}
+        </label>
+    `).join('');
 }
 
 subcategoryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Собираем спецификации персонажей
-    const specs = [];
-    document.querySelectorAll('.character-spec').forEach(spec => {
-        const role = spec.querySelector('.spec-role').value.trim();
-        const roleDesc = spec.querySelector('.spec-role-description').value.trim();
-
-        const specData = {
-            gender: spec.querySelector('.spec-gender').value,
-            age_min: parseInt(spec.querySelector('.spec-age-min').value),
-            age_max: parseInt(spec.querySelector('.spec-age-max').value),
-            can_have_initiative: spec.querySelector('.spec-initiative').checked
-        };
-
-        if (role) {
-            specData.role = role;
-        }
-        if (roleDesc) {
-            specData.role_description = roleDesc;
-        }
-
-        specs.push(specData);
-    });
+    // Собираем выбранных персонажей
+    const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
 
     // Собираем разрешенные перспективы
-    const perspectives = [];
-    document.querySelectorAll('.perspective-check:checked').forEach(cb => {
-        perspectives.push(cb.value);
-    });
+    const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
+        .map(cb => cb.value);
 
     const data = {
         category_id: parseInt(document.getElementById('categoryId').value),
@@ -215,28 +167,83 @@ subcategoryForm.addEventListener('submit', async (e) => {
         description: document.getElementById('subcategoryDescription').value,
         num_characters_min: parseInt(document.getElementById('numCharMin').value),
         num_characters_max: parseInt(document.getElementById('numCharMax').value),
-        character_specs: specs,
+        character_ids: selectedCharacterIds,
         allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо']
     };
 
     try {
-        const response = await fetch('/api/subcategories', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
+        let response;
+        if (editingId) {
+            // Обновление
+            response = await fetch(`/api/subcategories/${editingId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        } else {
+            // Создание
+            response = await fetch('/api/subcategories', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        }
 
         if (response.ok) {
-            showAlert('Подкатегория успешно добавлена!', 'success');
+            showAlert(editingId ? 'Подкатегория успешно обновлена!' : 'Подкатегория успешно добавлена!', 'success');
             subcategoryForm.reset();
+            cancelEdit();
             setTimeout(() => location.reload(), 1000);
         } else {
-            showAlert('Ошибка при добавлении подкатегории', 'error');
+            showAlert('Ошибка при сохранении подкатегории', 'error');
         }
     } catch (error) {
         showAlert('Ошибка: ' + error.message, 'error');
     }
 });
+
+async function editSubcategory(id) {
+    try {
+        const response = await fetch(`/api/subcategories/${id}`);
+        if (response.ok) {
+            const subcategory = await response.json();
+
+            editingId = id;
+            formTitle.textContent = 'Редактировать подкатегорию';
+            submitBtn.textContent = 'Сохранить изменения';
+            cancelBtn.classList.remove('hidden');
+
+            document.getElementById('categoryId').value = subcategory.category_id;
+            document.getElementById('subcategoryName').value = subcategory.name;
+            document.getElementById('subcategoryDescription').value = subcategory.description || '';
+            document.getElementById('numCharMin').value = subcategory.num_characters_min;
+            document.getElementById('numCharMax').value = subcategory.num_characters_max;
+
+            // Устанавливаем перспективы
+            document.querySelectorAll('.perspective-check').forEach(cb => {
+                cb.checked = subcategory.allowed_perspectives.includes(cb.value);
+            });
+
+            // Устанавливаем выбранных персонажей
+            const characterIds = subcategory.character_ids || subcategory.characters.map(c => c.id) || [];
+            renderCharacterSelection(characterIds);
+
+            // Прокрутка к форме
+            subcategoryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function cancelEdit() {
+    editingId = null;
+    formTitle.textContent = 'Добавить новую подкатегорию';
+    submitBtn.textContent = 'Добавить подкатегорию';
+    cancelBtn.classList.add('hidden');
+    subcategoryForm.reset();
+    renderCharacterSelection();
+}
 
 async function deleteSubcategory(id) {
     if (!confirm('Вы уверены, что хотите удалить эту подкатегорию?')) {
@@ -265,5 +272,8 @@ function showAlert(message, type) {
     alertDiv.classList.remove('hidden');
     setTimeout(() => alertDiv.classList.add('hidden'), 3000);
 }
+
+// Загружаем персонажей при загрузке страницы
+loadCharacters();
 </script>
 {% endblock %}

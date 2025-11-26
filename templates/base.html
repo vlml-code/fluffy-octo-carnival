@@ -16,6 +16,7 @@
                     <li><a href="{{ url_for('categories_page') }}" {% if request.endpoint == 'categories_page' %}class="active"{% endif %}>Категории</a></li>
                     <li><a href="{{ url_for('subcategories_page') }}" {% if request.endpoint == 'subcategories_page' %}class="active"{% endif %}>Подкатегории</a></li>
                     <li><a href="{{ url_for('character_traits_page') }}" {% if request.endpoint == 'character_traits_page' %}class="active"{% endif %}>Характеристики</a></li>
+                    <li><a href="{{ url_for('characters_page') }}" {% if request.endpoint == 'characters_page' %}class="active"{% endif %}>Персонажи</a></li>
                     <li><a href="{{ url_for('locations_page') }}" {% if request.endpoint == 'locations_page' %}class="active"{% endif %}>Локации</a></li>
                     <li><a href="{{ url_for('tones_page') }}" {% if request.endpoint == 'tones_page' %}class="active"{% endif %}>Тоны</a></li>
                     <li><a href="{{ url_for('dialogue_styles_page') }}" {% if request.endpoint == 'dialogue_styles_page' %}class="active"{% endif %}>Стили диалогов</a></li>

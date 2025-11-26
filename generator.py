@@ -128,38 +128,68 @@ class StoryPromptGenerator:
             subcategory.num_characters_max
         )
 
-        char_specs = subcategory.get_character_specs()
-        if not char_specs:
-            # Если нет спецификации, создаем один стандартный персонаж
-            char_specs = [{
-                "gender": random.choice(["мужской", "женский", "небинарный"]),
-                "age_min": 18,
-                "age_max": 60,
-                "can_have_initiative": True
-            }]
+        # Пытаемся использовать персонажей из таблицы Character
+        if subcategory.characters:
+            # Используем персонажей из связанной таблицы
+            available_characters = list(subcategory.characters)
 
-        # Генерируем персонажей
-        for i in range(num_chars):
-            spec = char_specs[i % len(char_specs)]  # Циклически используем спецификации
+            # Генерируем нужное количество персонажей
+            for i in range(num_chars):
+                char_template = available_characters[i % len(available_characters)]
 
-            char = {
-                "gender": spec.get("gender", "небинарный"),
-                "age": random.randint(spec.get("age_min", 18), spec.get("age_max", 60)),
-                "role": spec.get("role"),
-                "role_description": spec.get("role_description"),
-                "has_initiative": False,
-                "attitude": None,
-                "traits": {},
-                "is_narrator": False
-            }
+                char = {
+                    "gender": char_template.gender,
+                    "age": random.randint(char_template.age_min, char_template.age_max),
+                    "role": char_template.name,
+                    "role_description": char_template.description,
+                    "has_initiative": False,
+                    "attitude": None,
+                    "traits": {},
+                    "is_narrator": False,
+                    "can_have_initiative": char_template.can_have_initiative
+                }
 
-            characters.append(char)
+                characters.append(char)
 
-        # Назначаем инициативу
-        chars_can_have_initiative = [
-            i for i, c in enumerate(characters)
-            if char_specs[i % len(char_specs)].get("can_have_initiative", True)
-        ]
+            # Назначаем инициативу
+            chars_can_have_initiative = [
+                i for i, c in enumerate(characters)
+                if c.get("can_have_initiative", True)
+            ]
+        else:
+            # Legacy: используем character_specs если нет привязанных персонажей
+            char_specs = subcategory.get_character_specs()
+            if not char_specs:
+                # Если нет спецификации, создаем один стандартный персонаж
+                char_specs = [{
+                    "gender": random.choice(["мужской", "женский", "небинарный"]),
+                    "age_min": 18,
+                    "age_max": 60,
+                    "can_have_initiative": True
+                }]
+
+            # Генерируем персонажей
+            for i in range(num_chars):
+                spec = char_specs[i % len(char_specs)]
+
+                char = {
+                    "gender": spec.get("gender", "небинарный"),
+                    "age": random.randint(spec.get("age_min", 18), spec.get("age_max", 60)),
+                    "role": spec.get("role"),
+                    "role_description": spec.get("role_description"),
+                    "has_initiative": False,
+                    "attitude": None,
+                    "traits": {},
+                    "is_narrator": False
+                }
+
+                characters.append(char)
+
+            # Назначаем инициативу
+            chars_can_have_initiative = [
+                i for i, c in enumerate(characters)
+                if char_specs[i % len(char_specs)].get("can_have_initiative", True)
+            ]
 
         if chars_can_have_initiative and random.random() > 0.3:  # 70% шанс что кто-то будет с инициативой
             initiative_char_idx = random.choice(chars_can_have_initiative)

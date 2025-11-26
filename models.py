@@ -5,6 +5,13 @@ import json
 db = SQLAlchemy()
 
 
+# Ассоциативная таблица для связи подкатегорий и персонажей
+subcategory_characters = db.Table('subcategory_characters',
+    db.Column('subcategory_id', db.Integer, db.ForeignKey('subcategories.id'), primary_key=True),
+    db.Column('character_id', db.Integer, db.ForeignKey('characters.id'), primary_key=True)
+)
+
+
 class Category(db.Model):
     """Главная категория рассказа"""
     __tablename__ = 'categories'
@@ -38,15 +45,21 @@ class Subcategory(db.Model):
     num_characters_min = db.Column(db.Integer, default=1)
     num_characters_max = db.Column(db.Integer, default=1)
 
-    # JSON структура для определения персонажей
+    # JSON структура для определения персонажей (legacy, для обратной совместимости)
     # Формат: [{"gender": "м/ж/небинарный", "age_min": int, "age_max": int, "can_have_initiative": bool}]
     character_specs = db.Column(db.Text, default='[]')
+
+    # JSON список ID персонажей из таблицы characters
+    character_ids = db.Column(db.Text, default='[]')
 
     # Настройки перспективы
     # Формат: ["первое_лицо", "третье_лицо", "переключение"]
     allowed_perspectives = db.Column(db.Text, default='["третье_лицо"]')
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Связь с персонажами (many-to-many)
+    characters = db.relationship('Character', secondary=subcategory_characters, back_populates='subcategories')
 
     def get_character_specs(self):
         return json.loads(self.character_specs) if self.character_specs else []
@@ -60,6 +73,14 @@ class Subcategory(db.Model):
     def set_allowed_perspectives(self, perspectives):
         self.allowed_perspectives = json.dumps(perspectives, ensure_ascii=False)
 
+    def get_character_ids(self):
+        """Получить список ID персонажей"""
+        return json.loads(self.character_ids) if self.character_ids else []
+
+    def set_character_ids(self, ids):
+        """Установить список ID персонажей"""
+        self.character_ids = json.dumps(ids, ensure_ascii=False)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -69,7 +90,38 @@ class Subcategory(db.Model):
             'num_characters_min': self.num_characters_min,
             'num_characters_max': self.num_characters_max,
             'character_specs': self.get_character_specs(),
+            'character_ids': self.get_character_ids(),
+            'characters': [c.to_dict() for c in self.characters],
             'allowed_perspectives': self.get_allowed_perspectives(),
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Character(db.Model):
+    """Шаблон персонажа для рассказов"""
+    __tablename__ = 'characters'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)  # Роль/название персонажа
+    description = db.Column(db.Text)  # Описание роли
+    gender = db.Column(db.String(50), nullable=False)  # мужской, женский, небинарный
+    age_min = db.Column(db.Integer, default=18)
+    age_max = db.Column(db.Integer, default=60)
+    can_have_initiative = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Связь с подкатегориями (many-to-many)
+    subcategories = db.relationship('Subcategory', secondary=subcategory_characters, back_populates='characters')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'gender': self.gender,
+            'age_min': self.age_min,
+            'age_max': self.age_max,
+            'can_have_initiative': self.can_have_initiative,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

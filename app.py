@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from models import (
-    db, Category, Subcategory, CharacterTraitType, CharacterTraitValue,
+    db, Category, Subcategory, Character, CharacterTraitType, CharacterTraitValue,
     Country, LocationType, Location, Tone, DialogueStyle
 )
 from generator import StoryPromptGenerator
@@ -42,6 +42,13 @@ def character_traits_page():
     """Страница управления характеристиками персонажей"""
     trait_types = CharacterTraitType.query.all()
     return render_template('character_traits.html', trait_types=trait_types)
+
+
+@app.route('/characters')
+def characters_page():
+    """Страница управления персонажами"""
+    characters = Character.query.all()
+    return render_template('characters.html', characters=characters)
 
 
 @app.route('/locations')
@@ -128,6 +135,15 @@ def api_subcategories():
         )
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+
+        # Добавляем связь с персонажами
+        if 'character_ids' in data and data['character_ids']:
+            subcategory.set_character_ids(data['character_ids'])
+            for char_id in data['character_ids']:
+                character = Character.query.get(char_id)
+                if character:
+                    subcategory.characters.append(character)
+
         db.session.add(subcategory)
         db.session.commit()
         return jsonify(subcategory.to_dict()), 201
@@ -154,6 +170,18 @@ def api_subcategory(id):
         subcategory.num_characters_max = data.get('num_characters_max', 1)
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+
+        # Обновляем связь с персонажами
+        if 'character_ids' in data:
+            subcategory.set_character_ids(data['character_ids'])
+            # Очищаем старые связи
+            subcategory.characters.clear()
+            # Добавляем новые
+            for char_id in data['character_ids']:
+                character = Character.query.get(char_id)
+                if character:
+                    subcategory.characters.append(character)
+
         db.session.commit()
         return jsonify(subcategory.to_dict())
 
@@ -219,6 +247,50 @@ def api_character_trait_value_delete(id):
     db.session.delete(trait_value)
     db.session.commit()
     return '', 204
+
+
+# Characters API
+@app.route('/api/characters', methods=['GET', 'POST'])
+def api_characters():
+    if request.method == 'POST':
+        data = request.json
+        character = Character(
+            name=data['name'],
+            description=data.get('description', ''),
+            gender=data['gender'],
+            age_min=data.get('age_min', 18),
+            age_max=data.get('age_max', 60),
+            can_have_initiative=data.get('can_have_initiative', True)
+        )
+        db.session.add(character)
+        db.session.commit()
+        return jsonify(character.to_dict()), 201
+
+    characters = Character.query.all()
+    return jsonify([c.to_dict() for c in characters])
+
+
+@app.route('/api/characters/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+def api_character(id):
+    character = Character.query.get_or_404(id)
+
+    if request.method == 'DELETE':
+        db.session.delete(character)
+        db.session.commit()
+        return '', 204
+
+    if request.method == 'PUT':
+        data = request.json
+        character.name = data['name']
+        character.description = data.get('description', '')
+        character.gender = data['gender']
+        character.age_min = data.get('age_min', 18)
+        character.age_max = data.get('age_max', 60)
+        character.can_have_initiative = data.get('can_have_initiative', True)
+        db.session.commit()
+        return jsonify(character.to_dict())
+
+    return jsonify(character.to_dict())
 
 
 # Countries API
@@ -395,6 +467,51 @@ def init_db():
         db.session.add_all([cat1, cat2, cat3])
         db.session.commit()
 
+        # Создаем персонажей
+        char1 = Character(
+            name="Главный герой",
+            description="Молодой человек, впервые влюбляющийся",
+            gender="мужской",
+            age_min=16,
+            age_max=20,
+            can_have_initiative=True
+        )
+        char2 = Character(
+            name="Возлюбленная",
+            description="Девушка, в которую влюбляется главный герой",
+            gender="женский",
+            age_min=16,
+            age_max=20,
+            can_have_initiative=True
+        )
+        char3 = Character(
+            name="Лидер экспедиции",
+            description="Опытный искатель приключений, возглавляющий группу",
+            gender="мужской",
+            age_min=25,
+            age_max=45,
+            can_have_initiative=True
+        )
+        char4 = Character(
+            name="Эксперт",
+            description="Специалист по древним артефактам",
+            gender="женский",
+            age_min=25,
+            age_max=45,
+            can_have_initiative=True
+        )
+        char5 = Character(
+            name="Новичок",
+            description="Молодой участник экспедиции без опыта",
+            gender="мужской",
+            age_min=18,
+            age_max=30,
+            can_have_initiative=False
+        )
+
+        db.session.add_all([char1, char2, char3, char4, char5])
+        db.session.commit()
+
         # Создаем подкатегории
         subcat1 = Subcategory(
             category_id=cat1.id,
@@ -403,25 +520,12 @@ def init_db():
             num_characters_min=2,
             num_characters_max=2
         )
-        subcat1.set_character_specs([
-            {
-                "gender": "мужской",
-                "age_min": 16,
-                "age_max": 20,
-                "can_have_initiative": True,
-                "role": "Главный герой",
-                "role_description": "Молодой человек, впервые влюбляющийся"
-            },
-            {
-                "gender": "женский",
-                "age_min": 16,
-                "age_max": 20,
-                "can_have_initiative": True,
-                "role": "Возлюбленная",
-                "role_description": "Девушка, в которую влюбляется главный герой"
-            }
-        ])
         subcat1.set_allowed_perspectives(["первое_лицо", "третье_лицо"])
+        db.session.add(subcat1)
+        # Связываем с персонажами
+        subcat1.characters.append(char1)
+        subcat1.characters.append(char2)
+        subcat1.set_character_ids([char1.id, char2.id])
 
         subcat2 = Subcategory(
             category_id=cat2.id,
@@ -430,35 +534,14 @@ def init_db():
             num_characters_min=3,
             num_characters_max=5
         )
-        subcat2.set_character_specs([
-            {
-                "gender": "мужской",
-                "age_min": 25,
-                "age_max": 45,
-                "can_have_initiative": True,
-                "role": "Лидер экспедиции",
-                "role_description": "Опытный искатель приключений, возглавляющий группу"
-            },
-            {
-                "gender": "женский",
-                "age_min": 25,
-                "age_max": 45,
-                "can_have_initiative": True,
-                "role": "Эксперт",
-                "role_description": "Специалист по древним артефактам"
-            },
-            {
-                "gender": "мужской",
-                "age_min": 18,
-                "age_max": 30,
-                "can_have_initiative": False,
-                "role": "Новичок",
-                "role_description": "Молодой участник экспедиции без опыта"
-            }
-        ])
         subcat2.set_allowed_perspectives(["третье_лицо", "переключение"])
+        db.session.add(subcat2)
+        # Связываем с персонажами
+        subcat2.characters.append(char3)
+        subcat2.characters.append(char4)
+        subcat2.characters.append(char5)
+        subcat2.set_character_ids([char3.id, char4.id, char5.id])
 
-        db.session.add_all([subcat1, subcat2])
         db.session.commit()
 
         # Создаем типы характеристик
