@@ -92,7 +92,8 @@ def api_categories():
         data = request.json
         category = Category(
             name=data['name'],
-            description=data.get('description', '')
+            description=data.get('description', ''),
+            is_premium=data.get('is_premium', False)
         )
         db.session.add(category)
         db.session.commit()
@@ -115,6 +116,7 @@ def api_category(id):
         data = request.json
         category.name = data['name']
         category.description = data.get('description', '')
+        category.is_premium = data.get('is_premium', False)
         db.session.commit()
         return jsonify(category.to_dict())
 
@@ -442,8 +444,10 @@ def api_dialogue_style(id):
 # Generate Prompt API
 @app.route('/api/generate-prompt', methods=['POST'])
 def api_generate_prompt():
+    data = request.json or {}
+    premium = data.get('premium', False)
     generator = StoryPromptGenerator(db.session)
-    prompt = generator.generate_prompt()
+    prompt = generator.generate_prompt(premium=premium)
     return jsonify({'prompt': prompt})
 
 
@@ -460,11 +464,13 @@ def init_db():
             return
 
         # Создаем примеры категорий
-        cat1 = Category(name="Романтика", description="Истории о любви и отношениях")
-        cat2 = Category(name="Приключения", description="Захватывающие приключенческие истории")
-        cat3 = Category(name="Драма", description="Глубокие драматические истории")
+        cat1 = Category(name="Романтика", description="Истории о любви и отношениях", is_premium=False)
+        cat2 = Category(name="Приключения", description="Захватывающие приключенческие истории", is_premium=False)
+        cat3 = Category(name="Драма", description="Глубокие драматические истории", is_premium=False)
+        cat4 = Category(name="Фантастика", description="Научная фантастика и фэнтези", is_premium=True)
+        cat5 = Category(name="Мистика", description="Загадочные и сверхъестественные истории", is_premium=True)
 
-        db.session.add_all([cat1, cat2, cat3])
+        db.session.add_all([cat1, cat2, cat3, cat4, cat5])
         db.session.commit()
 
         # Создаем персонажей
@@ -541,6 +547,70 @@ def init_db():
         subcat2.characters.append(char4)
         subcat2.characters.append(char5)
         subcat2.set_character_ids([char3.id, char4.id, char5.id])
+
+        # Создаем персонажей для премиум категорий
+        char6 = Character(
+            name="Космический исследователь",
+            description="Отважный исследователь неизведанных миров",
+            gender="мужской",
+            age_min=30,
+            age_max=50,
+            can_have_initiative=True
+        )
+        char7 = Character(
+            name="Инопланетянин",
+            description="Представитель внеземной цивилизации",
+            gender="небинарный",
+            age_min=100,
+            age_max=1000,
+            can_have_initiative=True
+        )
+        char8 = Character(
+            name="Маг",
+            description="Владеющий древней магией",
+            gender="мужской",
+            age_min=25,
+            age_max=60,
+            can_have_initiative=True
+        )
+        char9 = Character(
+            name="Призрак",
+            description="Дух, привязанный к определенному месту",
+            gender="женский",
+            age_min=20,
+            age_max=40,
+            can_have_initiative=False
+        )
+
+        db.session.add_all([char6, char7, char8, char9])
+        db.session.commit()
+
+        # Премиум подкатегории
+        subcat3 = Subcategory(
+            category_id=cat4.id,
+            name="Контакт с инопланетянами",
+            description="Первый контакт человечества с внеземной цивилизацией",
+            num_characters_min=2,
+            num_characters_max=3
+        )
+        subcat3.set_allowed_perspectives(["первое_лицо", "третье_лицо"])
+        db.session.add(subcat3)
+        subcat3.characters.append(char6)
+        subcat3.characters.append(char7)
+        subcat3.set_character_ids([char6.id, char7.id])
+
+        subcat4 = Subcategory(
+            category_id=cat5.id,
+            name="Дом с привидениями",
+            description="Загадочные события в старом особняке",
+            num_characters_min=2,
+            num_characters_max=3
+        )
+        subcat4.set_allowed_perspectives(["первое_лицо", "третье_лицо", "переключение"])
+        db.session.add(subcat4)
+        subcat4.characters.append(char8)
+        subcat4.characters.append(char9)
+        subcat4.set_character_ids([char8.id, char9.id])
 
         db.session.commit()
 

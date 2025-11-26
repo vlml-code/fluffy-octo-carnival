@@ -6,8 +6,10 @@
 <h2>Управление Категориями</h2>
 
 <div class="form-container">
-    <h3>Добавить новую категорию</h3>
+    <h3 id="formTitle">Добавить новую категорию</h3>
     <form id="categoryForm">
+        <input type="hidden" id="categoryId">
+
         <div class="form-group">
             <label for="categoryName">Название категории:</label>
             <input type="text" id="categoryName" required>
@@ -16,7 +18,16 @@
             <label for="categoryDescription">Описание:</label>
             <textarea id="categoryDescription"></textarea>
         </div>
-        <button type="submit" class="btn btn-success">Добавить категорию</button>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="isPremium">
+                Премиум категория
+            </label>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-success" id="submitBtn">Добавить категорию</button>
+            <button type="button" class="btn btn-warning hidden" id="cancelBtn" onclick="cancelEdit()">Отмена</button>
+        </div>
     </form>
 </div>
 
@@ -26,9 +37,15 @@
 <ul class="item-list" id="categoriesList">
     {% for category in categories %}
     <li class="item-card" data-id="{{ category.id }}">
-        <h4>{{ category.name }}</h4>
+        <h4>
+            {{ category.name }}
+            {% if category.is_premium %}
+            <span style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 0.2rem 0.6rem; border-radius: 15px; font-size: 0.8em; margin-left: 0.5rem;">ПРЕМИУМ</span>
+            {% endif %}
+        </h4>
         <p>{{ category.description or 'Нет описания' }}</p>
         <div class="item-actions">
+            <button class="btn btn-warning" onclick="editCategory({{ category.id }})">Редактировать</button>
             <button class="btn btn-danger" onclick="deleteCategory({{ category.id }})">Удалить</button>
         </div>
     </li>
@@ -42,33 +59,82 @@
 <script>
 const categoryForm = document.getElementById('categoryForm');
 const alertDiv = document.getElementById('alert');
+const formTitle = document.getElementById('formTitle');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+
+let editingId = null;
 
 categoryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const data = {
         name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value
+        description: document.getElementById('categoryDescription').value,
+        is_premium: document.getElementById('isPremium').checked
     };
 
     try {
-        const response = await fetch('/api/categories', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
+        let response;
+        if (editingId) {
+            // Обновление
+            response = await fetch(`/api/categories/${editingId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        } else {
+            // Создание
+            response = await fetch('/api/categories', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        }
 
         if (response.ok) {
-            showAlert('Категория успешно добавлена!', 'success');
+            showAlert(editingId ? 'Категория успешно обновлена!' : 'Категория успешно добавлена!', 'success');
             categoryForm.reset();
+            cancelEdit();
             setTimeout(() => location.reload(), 1000);
         } else {
-            showAlert('Ошибка при добавлении категории', 'error');
+            showAlert('Ошибка при сохранении категории', 'error');
         }
     } catch (error) {
         showAlert('Ошибка: ' + error.message, 'error');
     }
 });
+
+async function editCategory(id) {
+    try {
+        const response = await fetch(`/api/categories/${id}`);
+        if (response.ok) {
+            const category = await response.json();
+
+            editingId = id;
+            formTitle.textContent = 'Редактировать категорию';
+            submitBtn.textContent = 'Сохранить изменения';
+            cancelBtn.classList.remove('hidden');
+
+            document.getElementById('categoryName').value = category.name;
+            document.getElementById('categoryDescription').value = category.description || '';
+            document.getElementById('isPremium').checked = category.is_premium || false;
+
+            // Прокрутка к форме
+            categoryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function cancelEdit() {
+    editingId = null;
+    formTitle.textContent = 'Добавить новую категорию';
+    submitBtn.textContent = 'Добавить категорию';
+    cancelBtn.classList.add('hidden');
+    categoryForm.reset();
+}
 
 async function deleteCategory(id) {
     if (!confirm('Вы уверены, что хотите удалить эту категорию? Все связанные подкатегории также будут удалены.')) {

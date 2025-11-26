@@ -19,6 +19,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
+    is_premium = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     subcategories = db.relationship('Subcategory', backref='category', lazy=True, cascade='all, delete-orphan')
@@ -28,6 +29,7 @@ class Category(db.Model):
             'id': self.id,
             'name': self.name,
             'description': self.description,
+            'is_premium': self.is_premium,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

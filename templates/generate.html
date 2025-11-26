@@ -10,6 +10,18 @@
     Система автоматически выберет случайные значения для всех параметров.
 </p>
 
+<div style="margin-bottom: 1rem;">
+    <label style="display: inline-flex; align-items: center; font-size: 1.1rem; cursor: pointer;">
+        <input type="checkbox" id="premiumCheckbox" style="width: auto; margin-right: 0.5rem;">
+        <span>Включить премиум категории</span>
+        <span style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 0.2rem 0.6rem; border-radius: 15px; font-size: 0.8em; margin-left: 0.5rem;">ПРЕМИУМ</span>
+    </label>
+    <p style="font-size: 0.9em; color: #666; margin-top: 0.5rem;">
+        <strong>Выключено:</strong> используются только обычные категории<br>
+        <strong>Включено:</strong> используются только премиум категории
+    </p>
+</div>
+
 <button id="generateBtn" class="btn btn-generate">Сгенерировать промпт</button>
 
 <div id="spinner" class="spinner hidden"></div>
@@ -42,10 +54,14 @@ generateBtn.addEventListener('click', async () => {
     spinner.classList.remove('hidden');
     generateBtn.disabled = true;
 
+    // Получаем значение чекбокса премиум
+    const isPremium = document.getElementById('premiumCheckbox').checked;
+
     try {
         const response = await fetch('/api/generate-prompt', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ premium: isPremium })
         });
 
         spinner.classList.add('hidden');

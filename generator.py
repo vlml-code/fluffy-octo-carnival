@@ -11,16 +11,21 @@ class StoryPromptGenerator:
     def __init__(self, db_session):
         self.db = db_session
 
-    def generate_prompt(self):
-        """Генерирует полный промпт для рассказа"""
+    def generate_prompt(self, premium=None):
+        """Генерирует полный промпт для рассказа
+
+        Args:
+            premium: None (все категории), False (только не-премиум), True (только премиум)
+        """
         prompt_parts = []
 
         prompt_parts.append("Твоя задача написать рассказ.\n")
 
         # 1. Выбор категории
-        category = self._select_random_category()
+        category = self._select_random_category(premium=premium)
         if not category:
-            return "Ошибка: нет категорий в базе данных"
+            premium_text = "премиум" if premium else "не-премиум"
+            return f"Ошибка: нет {premium_text} категорий в базе данных"
 
         prompt_parts.append(f"\n## КАТЕГОРИЯ")
         prompt_parts.append(f"**{category.name}**")
@@ -81,7 +86,7 @@ class StoryPromptGenerator:
         prompt_parts.append(perspective_type)
 
         # 5. Второстепенные элементы
-        secondary_elements = self._select_secondary_elements(category)
+        secondary_elements = self._select_secondary_elements(category, premium=premium)
         if secondary_elements:
             prompt_parts.append(f"\n## ВТОРОСТЕПЕННЫЕ ЭЛЕМЕНТЫ")
             prompt_parts.append("(Опциональные элементы, которые могут быть включены в историю как дополнительные сюжетные линии, но не являются основным фокусом)")
@@ -118,9 +123,16 @@ class StoryPromptGenerator:
 
         return "\n".join(prompt_parts)
 
-    def _select_random_category(self):
-        """Выбирает случайную категорию"""
-        categories = Category.query.all()
+    def _select_random_category(self, premium=None):
+        """Выбирает случайную категорию
+
+        Args:
+            premium: None (все категории), False (только не-премиум), True (только премиум)
+        """
+        if premium is None:
+            categories = Category.query.all()
+        else:
+            categories = Category.query.filter_by(is_premium=premium).all()
         return random.choice(categories) if categories else None
 
     def _select_random_subcategory(self, category):
@@ -128,17 +140,21 @@ class StoryPromptGenerator:
         subcategories = Subcategory.query.filter_by(category_id=category.id).all()
         return random.choice(subcategories) if subcategories else None
 
-    def _select_secondary_elements(self, main_category):
+    def _select_secondary_elements(self, main_category, premium=None):
         """Выбирает 1-2 второстепенных элемента из других категорий
 
         Args:
             main_category: Основная категория (исключается из выбора)
+            premium: None (все категории), False (только не-премиум), True (только премиум)
 
         Returns:
             list: Список словарей с информацией о второстепенных элементах
         """
         # Получаем все категории кроме основной
-        other_categories = Category.query.filter(Category.id != main_category.id).all()
+        query = Category.query.filter(Category.id != main_category.id)
+        if premium is not None:
+            query = query.filter_by(is_premium=premium)
+        other_categories = query.all()
 
         if not other_categories:
             return []
