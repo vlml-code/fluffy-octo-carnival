@@ -297,6 +297,17 @@ def api_character_trait_types():
         )
         db.session.add(trait_type)
         db.session.commit()
+
+        values = data.get('values', []) or []
+        for value in values:
+            cleaned = (value or '').strip()
+            if not cleaned:
+                continue
+            trait_type.trait_values.append(CharacterTraitValue(value=cleaned))
+
+        if values:
+            db.session.commit()
+
         return jsonify(trait_type.to_dict()), 201
 
     trait_types = CharacterTraitType.query.all()
@@ -453,6 +464,30 @@ def api_locations():
 
     locations = Location.query.all()
     return jsonify([l.to_dict() for l in locations])
+
+
+@app.route('/api/locations/import', methods=['POST'])
+def api_locations_import():
+    data = request.json or {}
+    rows = data.get('rows', []) or []
+
+    created = []
+    for row in rows:
+        name = (row.get('name') or '').strip()
+        description = (row.get('description') or '').strip()
+
+        if not name:
+            continue
+
+        location = Location(name=name, description=description)
+        db.session.add(location)
+        created.append(location)
+
+    if not created:
+        return jsonify({'error': 'Не удалось создать ни одного места'}), 400
+
+    db.session.commit()
+    return jsonify([l.to_dict() for l in created]), 201
 
 
 @app.route('/api/locations/<int:id>', methods=['DELETE', 'PUT'])
