@@ -124,14 +124,39 @@ function displayPrompt(prompt) {
 }
 
 copyBtn.addEventListener('click', () => {
-    const text = promptDisplay.textContent;
+    const text = promptDisplay.textContent.trim();
 
-    navigator.clipboard.writeText(text).then(() => {
-        showAlert('Промпт скопирован в буфер обмена!', 'success');
-    }).catch(err => {
-        showAlert('Ошибка копирования: ' + err.message, 'error');
-    });
+    if (!text) {
+        showAlert('Нет текста для копирования', 'error');
+        return;
+    }
+
+    copyTextToClipboard(text)
+        .then(() => showAlert('Промпт скопирован в буфер обмена!', 'success'))
+        .catch(err => showAlert('Ошибка копирования: ' + err.message, 'error'));
 });
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(textarea);
+
+    if (!success) {
+        throw new Error('Копирование не поддерживается в этом браузере');
+    }
+}
 
 function showAlert(message, type) {
     alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';

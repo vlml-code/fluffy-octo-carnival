@@ -36,6 +36,10 @@ class StoryPromptGenerator:
         prompt_parts = []
 
         prompt_parts.append("Твоя задача написать рассказ.\n")
+        prompt_parts.append(
+            "Характеристики персонажей показывай через действия, речь и выборы; "
+            "не перечисляй их напрямую, если сюжет не требует явного упоминания."
+        )
 
         # 1. Выбор категории
         category = self._select_random_category(premium=premium, category_ids=category_ids)
