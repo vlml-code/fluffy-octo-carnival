@@ -30,6 +30,19 @@
     </p>
 </div>
 
+<div class="category-select">
+    <div class="category-select__header">Второстепенные линии</div>
+    <label class="category-filter">
+        <input type="checkbox" id="secondarySameCategory" />
+        <span>Включать из основной категории</span>
+    </label>
+    <label class="category-filter">
+        <input type="checkbox" id="secondaryOtherCategories" />
+        <span>Включать из других категорий</span>
+    </label>
+    <p class="category-select__hint">По умолчанию второстепенные элементы не добавляются.</p>
+</div>
+
 <button id="generateBtn" class="btn btn-generate">Сгенерировать промпт</button>
 
 <div id="spinner" class="spinner hidden"></div>
@@ -70,12 +83,19 @@ generateBtn.addEventListener('click', async () => {
     const selectedCategoryIds = Array.from(
         document.querySelectorAll('input[name="categoryFilter"]:checked')
     ).map((checkbox) => Number(checkbox.value));
+    const includeSecondaryMain = document.getElementById('secondarySameCategory').checked;
+    const includeSecondaryOther = document.getElementById('secondaryOtherCategories').checked;
 
     try {
         const response = await fetch('/api/generate-prompt', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ premium: isPremium, category_ids: selectedCategoryIds })
+            body: JSON.stringify({
+                premium: isPremium,
+                category_ids: selectedCategoryIds,
+                include_secondary_main: includeSecondaryMain,
+                include_secondary_other: includeSecondaryOther
+            })
         });
 
         spinner.classList.add('hidden');

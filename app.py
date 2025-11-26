@@ -546,12 +546,19 @@ def api_generate_prompt():
     data = request.json or {}
     premium = data.get('premium', False)
     category_ids = data.get('category_ids') or []
+    include_secondary_main = bool(data.get('include_secondary_main'))
+    include_secondary_other = bool(data.get('include_secondary_other'))
     try:
         category_ids = [int(c_id) for c_id in category_ids]
     except (TypeError, ValueError):
         category_ids = []
     generator = StoryPromptGenerator(db.session)
-    prompt = generator.generate_prompt(premium=premium, category_ids=category_ids)
+    prompt = generator.generate_prompt(
+        premium=premium,
+        category_ids=category_ids,
+        include_secondary_main=include_secondary_main,
+        include_secondary_other=include_secondary_other,
+    )
     return jsonify({'prompt': prompt})
 
 

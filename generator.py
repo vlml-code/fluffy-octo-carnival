@@ -21,7 +21,13 @@ class StoryPromptGenerator:
     def __init__(self, db_session):
         self.db = db_session
 
-    def generate_prompt(self, premium=None, category_ids=None):
+    def generate_prompt(
+        self,
+        premium=None,
+        category_ids=None,
+        include_secondary_main=False,
+        include_secondary_other=False,
+    ):
         """Генерирует полный промпт для рассказа
 
         Args:
@@ -100,6 +106,8 @@ class StoryPromptGenerator:
             category,
             premium=premium,
             main_subcategory=subcategory,
+            include_main_category=include_secondary_main,
+            include_other_categories=include_secondary_other,
         )
         if secondary_elements:
             prompt_parts.append(f"\n## ВТОРОСТЕПЕННЫЕ ЭЛЕМЕНТЫ")
@@ -159,36 +167,63 @@ class StoryPromptGenerator:
         subcategories = Subcategory.query.filter_by(category_id=category.id).all()
         return random.choice(subcategories) if subcategories else None
 
-    def _select_secondary_elements(self, main_category, premium=None, main_subcategory=None):
-        """Выбирает 1-2 второстепенных элемента внутри основной категории
+    def _select_secondary_elements(
+        self,
+        main_category,
+        premium=None,
+        main_subcategory=None,
+        include_main_category=False,
+        include_other_categories=False,
+    ):
+        """Выбирает 1-2 второстепенных элемента по заданным источникам.
 
         Args:
             main_category: Основная категория
             premium: None (все категории), False (только не-премиум), True (только премиум)
             main_subcategory: Основная подкатегория (исключается из выбора)
+            include_main_category: включать ли подкатегории основной категории
+            include_other_categories: включать ли подкатегории из других категорий
 
         Returns:
             list: Список словарей с информацией о второстепенных элементах
         """
-        # Получаем подкатегории только внутри основной категории
-        subcategory_query = Subcategory.query.filter_by(category_id=main_category.id)
-        if main_subcategory is not None:
-            subcategory_query = subcategory_query.filter(Subcategory.id != main_subcategory.id)
-
-        subcategories = subcategory_query.all()
-
-        if not subcategories:
+        if not include_main_category and not include_other_categories:
             return []
 
-        # Выбираем 1-2 второстепенных элемента
+        candidate_subcategories = []
+
+        if include_main_category:
+            subcategory_query = Subcategory.query.filter_by(category_id=main_category.id)
+            if main_subcategory is not None:
+                subcategory_query = subcategory_query.filter(Subcategory.id != main_subcategory.id)
+            candidate_subcategories.extend(subcategory_query.all())
+
+        if include_other_categories:
+            other_query = Subcategory.query.join(Category).filter(
+                Subcategory.category_id != main_category.id
+            )
+            if premium is not None:
+                other_query = other_query.filter(Category.is_premium == premium)
+            candidate_subcategories.extend(other_query.all())
+
+        if not candidate_subcategories:
+            return []
+
         num_elements = random.randint(1, 2)
+        selected_subcategories = random.sample(
+            candidate_subcategories,
+            min(num_elements, len(candidate_subcategories)),
+        )
 
         secondary_elements = []
-        selected_subcategories = random.sample(subcategories, min(num_elements, len(subcategories)))
-
         for subcategory in selected_subcategories:
+            if subcategory.category_id == main_category.id:
+                category = subcategory.category or main_category
+            else:
+                category = subcategory.category
+
             secondary_elements.append({
-                'category': main_category.name,
+                'category': category.name if category else main_category.name,
                 'subcategory': subcategory.name,
                 'description': subcategory.description
             })
