@@ -404,8 +404,22 @@ def init_db():
             num_characters_max=2
         )
         subcat1.set_character_specs([
-            {"gender": "мужской", "age_min": 16, "age_max": 20, "can_have_initiative": True},
-            {"gender": "женский", "age_min": 16, "age_max": 20, "can_have_initiative": True}
+            {
+                "gender": "мужской",
+                "age_min": 16,
+                "age_max": 20,
+                "can_have_initiative": True,
+                "role": "Главный герой",
+                "role_description": "Молодой человек, впервые влюбляющийся"
+            },
+            {
+                "gender": "женский",
+                "age_min": 16,
+                "age_max": 20,
+                "can_have_initiative": True,
+                "role": "Возлюбленная",
+                "role_description": "Девушка, в которую влюбляется главный герой"
+            }
         ])
         subcat1.set_allowed_perspectives(["первое_лицо", "третье_лицо"])
 
@@ -417,9 +431,30 @@ def init_db():
             num_characters_max=5
         )
         subcat2.set_character_specs([
-            {"gender": "мужской", "age_min": 25, "age_max": 45, "can_have_initiative": True},
-            {"gender": "женский", "age_min": 25, "age_max": 45, "can_have_initiative": True},
-            {"gender": "мужской", "age_min": 18, "age_max": 30, "can_have_initiative": False}
+            {
+                "gender": "мужской",
+                "age_min": 25,
+                "age_max": 45,
+                "can_have_initiative": True,
+                "role": "Лидер экспедиции",
+                "role_description": "Опытный искатель приключений, возглавляющий группу"
+            },
+            {
+                "gender": "женский",
+                "age_min": 25,
+                "age_max": 45,
+                "can_have_initiative": True,
+                "role": "Эксперт",
+                "role_description": "Специалист по древним артефактам"
+            },
+            {
+                "gender": "мужской",
+                "age_min": 18,
+                "age_max": 30,
+                "can_have_initiative": False,
+                "role": "Новичок",
+                "role_description": "Молодой участник экспедиции без опыта"
+            }
         ])
         subcat2.set_allowed_perspectives(["третье_лицо", "переключение"])
 

@@ -45,6 +45,12 @@
             <div id="characterSpecs">
                 <div class="character-spec">
                     <button type="button" class="btn btn-danger" onclick="removeSpec(this)" style="float: right; padding: 0.3rem 0.8rem;">×</button>
+                    <div style="margin-bottom: 0.5rem;">
+                        <label>Роль персонажа:</label>
+                        <input type="text" class="spec-role" placeholder="Например: Главный герой, Антагонист" style="width: 100%; margin-bottom: 0.5rem;">
+                        <label>Описание роли:</label>
+                        <input type="text" class="spec-role-description" placeholder="Краткое описание роли в сюжете" style="width: 100%;">
+                    </div>
                     <div class="spec-row">
                         <div>
                             <label>Пол:</label>
@@ -128,6 +134,12 @@ function addSpec() {
     newSpec.className = 'character-spec';
     newSpec.innerHTML = `
         <button type="button" class="btn btn-danger" onclick="removeSpec(this)" style="float: right; padding: 0.3rem 0.8rem;">×</button>
+        <div style="margin-bottom: 0.5rem;">
+            <label>Роль персонажа:</label>
+            <input type="text" class="spec-role" placeholder="Например: Главный герой, Антагонист" style="width: 100%; margin-bottom: 0.5rem;">
+            <label>Описание роли:</label>
+            <input type="text" class="spec-role-description" placeholder="Краткое описание роли в сюжете" style="width: 100%;">
+        </div>
         <div class="spec-row">
             <div>
                 <label>Пол:</label>
@@ -171,12 +183,24 @@ subcategoryForm.addEventListener('submit', async (e) => {
     // Собираем спецификации персонажей
     const specs = [];
     document.querySelectorAll('.character-spec').forEach(spec => {
-        specs.push({
+        const role = spec.querySelector('.spec-role').value.trim();
+        const roleDesc = spec.querySelector('.spec-role-description').value.trim();
+
+        const specData = {
             gender: spec.querySelector('.spec-gender').value,
             age_min: parseInt(spec.querySelector('.spec-age-min').value),
             age_max: parseInt(spec.querySelector('.spec-age-max').value),
             can_have_initiative: spec.querySelector('.spec-initiative').checked
-        });
+        };
+
+        if (role) {
+            specData.role = role;
+        }
+        if (roleDesc) {
+            specData.role_description = roleDesc;
+        }
+
+        specs.push(specData);
     });
 
     // Собираем разрешенные перспективы

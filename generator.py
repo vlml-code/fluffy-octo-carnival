@@ -39,12 +39,32 @@ class StoryPromptGenerator:
 
         # 3. Генерация персонажей
         characters = self._generate_characters(subcategory)
+
+        # 4. Перспектива повествования (выбираем до отображения персонажей, чтобы пометить рассказчика)
+        perspective_type, narrator_index = self._select_perspective(subcategory, characters)
+
+        # Помечаем рассказчика
+        if narrator_index is not None and characters:
+            characters[narrator_index]["is_narrator"] = True
+
+        # Отображаем персонажей
         if characters:
             prompt_parts.append(f"\n## ПЕРСОНАЖИ")
             for i, char in enumerate(characters, 1):
                 prompt_parts.append(f"\n### Персонаж {i}")
+
+                # Роль персонажа
+                if char.get('role'):
+                    prompt_parts.append(f"- Роль: {char['role']}")
+                    if char.get('role_description'):
+                        prompt_parts.append(f"  {char['role_description']}")
+
                 prompt_parts.append(f"- Пол: {char['gender']}")
                 prompt_parts.append(f"- Возраст: {char['age']}")
+
+                # Помечаем рассказчика
+                if char.get('is_narrator'):
+                    prompt_parts.append(f"- **РАССКАЗЧИК** (повествование ведется от лица этого персонажа)")
 
                 if char.get('has_initiative'):
                     prompt_parts.append(f"- Инициатива: Да (события происходят по воле этого персонажа)")
@@ -57,10 +77,8 @@ class StoryPromptGenerator:
                     for trait_name, trait_value in char['traits'].items():
                         prompt_parts.append(f"  - {trait_name}: {trait_value}")
 
-        # 4. Перспектива повествования
-        perspective = self._select_perspective(subcategory, characters)
         prompt_parts.append(f"\n## ПЕРСПЕКТИВА ПОВЕСТВОВАНИЯ")
-        prompt_parts.append(perspective)
+        prompt_parts.append(perspective_type)
 
         # 5. Место действия
         location_info = self._generate_location()
@@ -127,9 +145,12 @@ class StoryPromptGenerator:
             char = {
                 "gender": spec.get("gender", "небинарный"),
                 "age": random.randint(spec.get("age_min", 18), spec.get("age_max", 60)),
+                "role": spec.get("role"),
+                "role_description": spec.get("role_description"),
                 "has_initiative": False,
                 "attitude": None,
-                "traits": {}
+                "traits": {},
+                "is_narrator": False
             }
 
             characters.append(char)
@@ -186,7 +207,11 @@ class StoryPromptGenerator:
                     char["traits"][trait_type.name] = random_value.value
 
     def _select_perspective(self, subcategory, characters):
-        """Выбирает перспективу повествования"""
+        """Выбирает перспективу повествования
+
+        Returns:
+            tuple: (текст перспективы, индекс рассказчика или None)
+        """
         allowed = subcategory.get_allowed_perspectives()
         if not allowed:
             allowed = ["третье_лицо"]
@@ -194,12 +219,13 @@ class StoryPromptGenerator:
         perspective_type = random.choice(allowed)
 
         if perspective_type == "первое_лицо" and characters:
-            char_num = random.randint(1, len(characters))
-            return f"От первого лица (персонаж {char_num})"
+            narrator_idx = random.randint(0, len(characters) - 1)
+            char_num = narrator_idx + 1
+            return (f"От первого лица (персонаж {char_num})", narrator_idx)
         elif perspective_type == "переключение" and len(characters) > 1:
-            return "С переключением между рассказчиками"
+            return ("С переключением между рассказчиками", None)
         else:
-            return "От третьего лица"
+            return ("От третьего лица", None)
 
     def _generate_location(self):
         """Генерирует место действия"""
