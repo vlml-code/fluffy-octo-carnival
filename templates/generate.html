@@ -22,6 +22,27 @@
     </p>
 </div>
 
+<div class="category-select">
+    <div class="category-select__header">Категории</div>
+    <div id="categoryFilters" class="category-filters"></div>
+    <p class="category-select__hint">
+        Если ни одна категория не выбрана, используется случайная категория по текущим настройкам.
+    </p>
+</div>
+
+<div class="category-select">
+    <div class="category-select__header">Второстепенные линии</div>
+    <label class="category-filter">
+        <input type="checkbox" id="secondarySameCategory" />
+        <span>Включать из основной категории</span>
+    </label>
+    <label class="category-filter">
+        <input type="checkbox" id="secondaryOtherCategories" />
+        <span>Включать из других категорий</span>
+    </label>
+    <p class="category-select__hint">По умолчанию второстепенные элементы не добавляются.</p>
+</div>
+
 <button id="generateBtn" class="btn btn-generate">Сгенерировать промпт</button>
 
 <div id="spinner" class="spinner hidden"></div>
@@ -44,6 +65,9 @@ const alertDiv = document.getElementById('alert');
 const promptContainer = document.getElementById('promptContainer');
 const promptDisplay = document.getElementById('promptDisplay');
 const copyBtn = document.getElementById('copyBtn');
+const categoryFilters = document.getElementById('categoryFilters');
+
+document.addEventListener('DOMContentLoaded', loadCategories);
 
 generateBtn.addEventListener('click', async () => {
     // Скрыть предыдущий результат
@@ -56,12 +80,22 @@ generateBtn.addEventListener('click', async () => {
 
     // Получаем значение чекбокса премиум
     const isPremium = document.getElementById('premiumCheckbox').checked;
+    const selectedCategoryIds = Array.from(
+        document.querySelectorAll('input[name="categoryFilter"]:checked')
+    ).map((checkbox) => Number(checkbox.value));
+    const includeSecondaryMain = document.getElementById('secondarySameCategory').checked;
+    const includeSecondaryOther = document.getElementById('secondaryOtherCategories').checked;
 
     try {
         const response = await fetch('/api/generate-prompt', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ premium: isPremium })
+            body: JSON.stringify({
+                premium: isPremium,
+                category_ids: selectedCategoryIds,
+                include_secondary_main: includeSecondaryMain,
+                include_secondary_other: includeSecondaryOther
+            })
         });
 
         spinner.classList.add('hidden');
@@ -90,20 +124,80 @@ function displayPrompt(prompt) {
 }
 
 copyBtn.addEventListener('click', () => {
-    const text = promptDisplay.textContent;
+    const text = promptDisplay.textContent.trim();
 
-    navigator.clipboard.writeText(text).then(() => {
-        showAlert('Промпт скопирован в буфер обмена!', 'success');
-    }).catch(err => {
-        showAlert('Ошибка копирования: ' + err.message, 'error');
-    });
+    if (!text) {
+        showAlert('Нет текста для копирования', 'error');
+        return;
+    }
+
+    copyTextToClipboard(text)
+        .then(() => showAlert('Промпт скопирован в буфер обмена!', 'success'))
+        .catch(err => showAlert('Ошибка копирования: ' + err.message, 'error'));
 });
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(textarea);
+
+    if (!success) {
+        throw new Error('Копирование не поддерживается в этом браузере');
+    }
+}
 
 function showAlert(message, type) {
     alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
     alertDiv.textContent = message;
     alertDiv.classList.remove('hidden');
     setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/categories');
+        if (!response.ok) {
+            throw new Error('Не удалось загрузить категории');
+        }
+
+        const categories = await response.json();
+        if (!categories.length) {
+            categoryFilters.innerHTML = '<p class="muted-text">Категории отсутствуют.</p>';
+            return;
+        }
+
+        categories.forEach((category) => {
+            const label = document.createElement('label');
+            label.classList.add('category-filter');
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'categoryFilter';
+            checkbox.value = category.id;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = category.name;
+
+            label.appendChild(checkbox);
+            label.appendChild(nameSpan);
+
+            categoryFilters.appendChild(label);
+        });
+    } catch (error) {
+        categoryFilters.innerHTML = `<p class="alert alert-error">${error.message}</p>`;
+    }
 }
 </script>
 {% endblock %}

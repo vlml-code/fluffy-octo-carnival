@@ -137,6 +137,11 @@ def api_subcategories():
         )
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+        settings = data.get('character_settings', [])
+        if settings:
+            selected_ids = set(data.get('character_ids', []))
+            settings = [s for s in settings if s.get('character_id') in selected_ids]
+        subcategory.set_character_settings(settings)
 
         # Добавляем связь с персонажами
         if 'character_ids' in data and data['character_ids']:
@@ -172,6 +177,11 @@ def api_subcategory(id):
         subcategory.num_characters_max = data.get('num_characters_max', 1)
         subcategory.set_character_specs(data.get('character_specs', []))
         subcategory.set_allowed_perspectives(data.get('allowed_perspectives', ['третье_лицо']))
+        settings = data.get('character_settings', [])
+        if settings:
+            selected_ids = set(data.get('character_ids', []))
+            settings = [s for s in settings if s.get('character_id') in selected_ids]
+        subcategory.set_character_settings(settings)
 
         # Обновляем связь с персонажами
         if 'character_ids' in data:
@@ -190,6 +200,90 @@ def api_subcategory(id):
     return jsonify(subcategory.to_dict())
 
 
+@app.route('/api/subcategories/<int:id>/copy', methods=['POST'])
+def api_copy_subcategory(id):
+    source = Subcategory.query.get_or_404(id)
+
+    new_subcategory = Subcategory(
+        category_id=source.category_id,
+        name=f"{source.name} (копия)",
+        description=source.description,
+        num_characters_min=source.num_characters_min,
+        num_characters_max=source.num_characters_max,
+    )
+
+    new_subcategory.set_character_specs(source.get_character_specs())
+    new_subcategory.set_allowed_perspectives(source.get_allowed_perspectives())
+    new_subcategory.set_character_ids(source.get_character_ids())
+    new_subcategory.set_character_settings(source.get_character_settings())
+
+    for character in source.characters:
+        new_subcategory.characters.append(character)
+
+    db.session.add(new_subcategory)
+    db.session.commit()
+
+    return jsonify(new_subcategory.to_dict()), 201
+
+
+@app.route('/api/subcategories/import', methods=['POST'])
+def api_import_subcategories():
+    data = request.json or {}
+    rows = data.get('rows', []) or []
+    if not rows:
+        return jsonify({'error': 'Не переданы строки CSV для импорта'}), 400
+
+    category_id = data.get('category_id')
+    if not category_id:
+        return jsonify({'error': 'Требуется категория для импорта'}), 400
+
+    min_chars = data.get('num_characters_min', 1)
+    max_chars = data.get('num_characters_max', 1)
+    character_ids = data.get('character_ids', []) or []
+    perspectives = data.get('allowed_perspectives', ['третье_лицо']) or ['третье_лицо']
+
+    settings = data.get('character_settings', []) or []
+    if settings:
+        selected_ids = set(character_ids)
+        settings = [s for s in settings if s.get('character_id') in selected_ids]
+
+    created = []
+
+    for row in rows:
+        name = (row.get('name') or '').strip()
+        description = (row.get('description') or '').strip()
+        if not name:
+            continue
+
+        subcategory = Subcategory(
+            category_id=category_id,
+            name=name,
+            description=description,
+            num_characters_min=min_chars,
+            num_characters_max=max_chars,
+        )
+
+        subcategory.set_character_specs(data.get('character_specs', []))
+        subcategory.set_allowed_perspectives(perspectives)
+        subcategory.set_character_ids(character_ids)
+        subcategory.set_character_settings(settings)
+
+        for char_id in character_ids:
+            character = Character.query.get(char_id)
+            if character:
+                subcategory.characters.append(character)
+
+        db.session.add(subcategory)
+        created.append(subcategory)
+
+    if not created:
+        return jsonify({'error': 'Не удалось создать ни одной подкатегории'}), 400
+
+    db.session.commit()
+
+    return jsonify([s.to_dict() for s in created]), 201
+
+
 # Character Trait Types API
 @app.route('/api/character-trait-types', methods=['GET', 'POST'])
 def api_character_trait_types():
@@ -203,6 +297,17 @@ def api_character_trait_types():
         )
         db.session.add(trait_type)
         db.session.commit()
+
+        values = data.get('values', []) or []
+        for value in values:
+            cleaned = (value or '').strip()
+            if not cleaned:
+                continue
+            trait_type.trait_values.append(CharacterTraitValue(value=cleaned))
+
+        if values:
+            db.session.commit()
+
         return jsonify(trait_type.to_dict()), 201
 
     trait_types = CharacterTraitType.query.all()
@@ -260,9 +365,11 @@ def api_characters():
             name=data['name'],
             description=data.get('description', ''),
             gender=data['gender'],
-            age_min=data.get('age_min', 18),
-            age_max=data.get('age_max', 60),
-            can_have_initiative=data.get('can_have_initiative', True)
+            can_have_initiative=data.get('can_have_initiative', True),
+            allowed_age_groups=json.dumps(
+                data.get('allowed_age_groups', []),
+                ensure_ascii=False
+            )
         )
         db.session.add(character)
         db.session.commit()
@@ -286,9 +393,12 @@ def api_character(id):
         character.name = data['name']
         character.description = data.get('description', '')
         character.gender = data['gender']
-        character.age_min = data.get('age_min', 18)
-        character.age_max = data.get('age_max', 60)
         character.can_have_initiative = data.get('can_have_initiative', True)
+        if 'allowed_age_groups' in data:
+            character.allowed_age_groups = json.dumps(
+                data.get('allowed_age_groups', []),
+                ensure_ascii=False
+            )
         db.session.commit()
         return jsonify(character.to_dict())
 
@@ -354,6 +464,30 @@ def api_locations():
 
     locations = Location.query.all()
     return jsonify([l.to_dict() for l in locations])
+
+
+@app.route('/api/locations/import', methods=['POST'])
+def api_locations_import():
+    data = request.json or {}
+    rows = data.get('rows', []) or []
+
+    created = []
+    for row in rows:
+        name = (row.get('name') or '').strip()
+        description = (row.get('description') or '').strip()
+
+        if not name:
+            continue
+
+        location = Location(name=name, description=description)
+        db.session.add(location)
+        created.append(location)
+
+    if not created:
+        return jsonify({'error': 'Не удалось создать ни одного места'}), 400
+
+    db.session.commit()
+    return jsonify([l.to_dict() for l in created]), 201
 
 
 @app.route('/api/locations/<int:id>', methods=['DELETE', 'PUT'])
@@ -446,8 +580,20 @@ def api_dialogue_style(id):
 def api_generate_prompt():
     data = request.json or {}
     premium = data.get('premium', False)
+    category_ids = data.get('category_ids') or []
+    include_secondary_main = bool(data.get('include_secondary_main'))
+    include_secondary_other = bool(data.get('include_secondary_other'))
+    try:
+        category_ids = [int(c_id) for c_id in category_ids]
+    except (TypeError, ValueError):
+        category_ids = []
     generator = StoryPromptGenerator(db.session)
-    prompt = generator.generate_prompt(premium=premium)
+    prompt = generator.generate_prompt(
+        premium=premium,
+        category_ids=category_ids,
+        include_secondary_main=include_secondary_main,
+        include_secondary_other=include_secondary_other,
+    )
     return jsonify({'prompt': prompt})
 
 
@@ -478,40 +624,30 @@ def init_db():
             name="Главный герой",
             description="Молодой человек, впервые влюбляющийся",
             gender="мужской",
-            age_min=16,
-            age_max=20,
             can_have_initiative=True
         )
         char2 = Character(
             name="Возлюбленная",
             description="Девушка, в которую влюбляется главный герой",
             gender="женский",
-            age_min=16,
-            age_max=20,
             can_have_initiative=True
         )
         char3 = Character(
             name="Лидер экспедиции",
             description="Опытный искатель приключений, возглавляющий группу",
             gender="мужской",
-            age_min=25,
-            age_max=45,
             can_have_initiative=True
         )
         char4 = Character(
             name="Эксперт",
             description="Специалист по древним артефактам",
             gender="женский",
-            age_min=25,
-            age_max=45,
             can_have_initiative=True
         )
         char5 = Character(
             name="Новичок",
             description="Молодой участник экспедиции без опыта",
             gender="мужской",
-            age_min=18,
-            age_max=30,
             can_have_initiative=False
         )
 
@@ -553,32 +689,24 @@ def init_db():
             name="Космический исследователь",
             description="Отважный исследователь неизведанных миров",
             gender="мужской",
-            age_min=30,
-            age_max=50,
             can_have_initiative=True
         )
         char7 = Character(
             name="Инопланетянин",
             description="Представитель внеземной цивилизации",
             gender="небинарный",
-            age_min=100,
-            age_max=1000,
             can_have_initiative=True
         )
         char8 = Character(
             name="Маг",
             description="Владеющий древней магией",
             gender="мужской",
-            age_min=25,
-            age_max=60,
             can_have_initiative=True
         )
         char9 = Character(
             name="Призрак",
             description="Дух, привязанный к определенному месту",
             gender="женский",
-            age_min=20,
-            age_max=40,
             can_have_initiative=False
         )
 

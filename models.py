@@ -48,11 +48,15 @@ class Subcategory(db.Model):
     num_characters_max = db.Column(db.Integer, default=1)
 
     # JSON структура для определения персонажей (legacy, для обратной совместимости)
-    # Формат: [{"gender": "м/ж/небинарный", "age_min": int, "age_max": int, "can_have_initiative": bool}]
+    # Формат: [{"gender": "м/ж/небинарный", "allowed_age_groups": [str], "can_have_initiative": bool}]
     character_specs = db.Column(db.Text, default='[]')
 
     # JSON список ID персонажей из таблицы characters
     character_ids = db.Column(db.Text, default='[]')
+
+    # JSON настройки выбранных персонажей
+    # Формат: [{"character_id": int, "is_primary": bool, "follow_primary_age": bool}] (allowed_age_groups поддерживается для обратной совместимости)
+    character_settings = db.Column(db.Text, default='[]')
 
     # Настройки перспективы
     # Формат: ["первое_лицо", "третье_лицо", "переключение"]
@@ -83,6 +87,12 @@ class Subcategory(db.Model):
         """Установить список ID персонажей"""
         self.character_ids = json.dumps(ids, ensure_ascii=False)
 
+    def get_character_settings(self):
+        return json.loads(self.character_settings) if self.character_settings else []
+
+    def set_character_settings(self, settings):
+        self.character_settings = json.dumps(settings, ensure_ascii=False)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -93,6 +103,7 @@ class Subcategory(db.Model):
             'num_characters_max': self.num_characters_max,
             'character_specs': self.get_character_specs(),
             'character_ids': self.get_character_ids(),
+            'character_settings': self.get_character_settings(),
             'characters': [c.to_dict() for c in self.characters],
             'allowed_perspectives': self.get_allowed_perspectives(),
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -107,13 +118,34 @@ class Character(db.Model):
     name = db.Column(db.String(200), nullable=False)  # Роль/название персонажа
     description = db.Column(db.Text)  # Описание роли
     gender = db.Column(db.String(50), nullable=False)  # мужской, женский, небинарный
-    age_min = db.Column(db.Integer, default=18)
-    age_max = db.Column(db.Integer, default=60)
     can_have_initiative = db.Column(db.Boolean, default=True)
+    allowed_age_groups = db.Column(
+        db.Text,
+        default=json.dumps([
+            "ребенок",
+            "подросток",
+            "юный",
+            "молодой",
+            "средний",
+            "зрелый",
+            "старый",
+        ], ensure_ascii=False),
+    )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Связь с подкатегориями (many-to-many)
     subcategories = db.relationship('Subcategory', secondary=subcategory_characters, back_populates='characters')
+
+    def get_allowed_age_groups(self):
+        if self.allowed_age_groups:
+            try:
+                return json.loads(self.allowed_age_groups)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def set_allowed_age_groups(self, groups):
+        self.allowed_age_groups = json.dumps(groups or [], ensure_ascii=False)
 
     def to_dict(self):
         return {
@@ -121,9 +153,8 @@ class Character(db.Model):
             'name': self.name,
             'description': self.description,
             'gender': self.gender,
-            'age_min': self.age_min,
-            'age_max': self.age_max,
             'can_have_initiative': self.can_have_initiative,
+            'allowed_age_groups': self.get_allowed_age_groups(),
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

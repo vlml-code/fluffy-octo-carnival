@@ -31,6 +31,15 @@
             </div>
         </div>
 
+        <div class="import-container" style="margin-top: 1rem;">
+            <h4 style="margin-top: 0;">CSV значений (по одному на строку)</h4>
+            <p style="font-size: 0.95em; color: #555; margin-top: -0.35rem;">Укажите список вариантов характеристики. Название и фильтр по полу задаются выше.</p>
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+                <label for="traitsCsv">CSV-файл</label>
+                <input type="file" id="traitsCsv" accept=".csv" />
+            </div>
+        </div>
+
         <button type="submit" class="btn btn-success">Добавить тип характеристики</button>
     </form>
 </div>
@@ -82,6 +91,8 @@
 <script>
 const traitTypeForm = document.getElementById('traitTypeForm');
 const alertDiv = document.getElementById('alert');
+const traitsCsvInput = document.getElementById('traitsCsv');
+let traitValuesFromCsv = [];
 
 traitTypeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -90,7 +101,8 @@ traitTypeForm.addEventListener('submit', async (e) => {
         name: document.getElementById('traitName').value,
         applies_to_male: document.getElementById('appliesToMale').checked,
         applies_to_female: document.getElementById('appliesToFemale').checked,
-        applies_to_nonbinary: document.getElementById('appliesToNonbinary').checked
+        applies_to_nonbinary: document.getElementById('appliesToNonbinary').checked,
+        values: traitValuesFromCsv
     };
 
     try {
@@ -103,6 +115,10 @@ traitTypeForm.addEventListener('submit', async (e) => {
         if (response.ok) {
             showAlert('Тип характеристики успешно добавлен!', 'success');
             traitTypeForm.reset();
+            traitValuesFromCsv = [];
+            if (traitsCsvInput) {
+                traitsCsvInput.value = '';
+            }
             setTimeout(() => location.reload(), 1000);
         } else {
             showAlert('Ошибка при добавлении типа характеристики', 'error');
@@ -111,6 +127,25 @@ traitTypeForm.addEventListener('submit', async (e) => {
         showAlert('Ошибка: ' + error.message, 'error');
     }
 });
+
+async function handleTraitsCsvChange(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+        traitValuesFromCsv = [];
+        return;
+    }
+
+    try {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(line => !!line);
+        traitValuesFromCsv = lines;
+    } catch (error) {
+        traitValuesFromCsv = [];
+        showAlert('Не удалось прочитать CSV: ' + error.message, 'error');
+    }
+}
 
 // Добавление значения к типу характеристики
 document.querySelectorAll('.add-value-form').forEach(form => {
@@ -191,6 +226,10 @@ function showAlert(message, type) {
     alertDiv.textContent = message;
     alertDiv.classList.remove('hidden');
     setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+
+if (traitsCsvInput) {
+    traitsCsvInput.addEventListener('change', handleTraitsCsvChange);
 }
 </script>
 {% endblock %}

@@ -69,6 +69,16 @@
         </div>
         <button type="submit" class="btn btn-success">Добавить место</button>
     </form>
+
+    <div class="import-container" style="margin-top: 1.5rem;">
+        <h4>Импорт мест из CSV</h4>
+        <p style="font-size: 0.95em; color: #555; margin-top: -0.35rem;">Две колонки: название, описание.</p>
+        <div class="form-group">
+            <label for="locationsCsv">CSV-файл</label>
+            <input type="file" id="locationsCsv" accept=".csv">
+        </div>
+        <button type="button" class="btn btn-secondary" id="importLocationsBtn">Импортировать</button>
+    </div>
 </div>
 
 <div id="alert" class="hidden"></div>
@@ -92,6 +102,8 @@
 {% block scripts %}
 <script>
 const alertDiv = document.getElementById('alert');
+const locationsCsvInput = document.getElementById('locationsCsv');
+const importLocationsBtn = document.getElementById('importLocationsBtn');
 
 // Страны
 document.getElementById('countryForm').addEventListener('submit', async (e) => {
@@ -207,11 +219,72 @@ async function deleteLocation(id) {
     }
 }
 
+function parseLocationCsv(text) {
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+
+    lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        let parts = trimmed.split(',');
+        if (parts.length < 2 && trimmed.includes(';')) {
+            parts = trimmed.split(';');
+        }
+
+        const name = (parts[0] || '').trim();
+        const description = (parts.slice(1).join(parts.length > 1 ? (trimmed.includes(';') ? ';' : ',') : ',') || '').trim();
+
+        if (name) {
+            rows.push({ name, description });
+        }
+    });
+
+    return rows;
+}
+
+async function importLocations() {
+    if (!locationsCsvInput.files || locationsCsvInput.files.length === 0) {
+        showAlert('Выберите CSV-файл для импорта мест', 'error');
+        return;
+    }
+
+    try {
+        const text = await locationsCsvInput.files[0].text();
+        const rows = parseLocationCsv(text);
+
+        if (rows.length === 0) {
+            showAlert('CSV-файл не содержит подходящих строк', 'error');
+            return;
+        }
+
+        const response = await fetch('/api/locations/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows })
+        });
+
+        if (response.ok) {
+            showAlert('Места импортированы', 'success');
+            locationsCsvInput.value = '';
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showAlert('Не удалось импортировать места', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка при чтении CSV: ' + error.message, 'error');
+    }
+}
+
 function showAlert(message, type) {
     alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
     alertDiv.textContent = message;
     alertDiv.classList.remove('hidden');
     setTimeout(() => alertDiv.classList.add('hidden'), 3000);
+}
+
+if (importLocationsBtn) {
+    importLocationsBtn.addEventListener('click', importLocations);
 }
 </script>
 {% endblock %}

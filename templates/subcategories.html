@@ -75,6 +75,16 @@
             <button type="button" class="btn btn-warning hidden" id="cancelBtn" onclick="cancelEdit()">Отмена</button>
         </div>
     </form>
+
+    <div class="import-container">
+        <h4>Импорт подкатегорий из CSV</h4>
+        <p style="font-size: 0.95em; color: #555; margin-top: -0.35rem;">Используются выбранные выше настройки категории, количества персонажей, перспектив и выбранные персонажи.</p>
+        <div class="form-group">
+            <label for="csvFile">CSV-файл (название подкатегории, описание)</label>
+            <input type="file" id="csvFile" accept=".csv">
+        </div>
+        <button type="button" class="btn btn-secondary" id="importBtn">Импортировать CSV</button>
+    </div>
 </div>
 
 <div id="alert" class="hidden"></div>
@@ -93,13 +103,14 @@
         <p><strong>Персонажи:</strong></p>
         <ul style="margin-left: 1.5rem;">
             {% for character in subcategory.characters %}
-            <li>{{ character.name }} ({{ character.gender }}, {{ character.age_min }}-{{ character.age_max }} лет)</li>
+            <li>{{ character.name }} ({{ character.gender }})</li>
             {% endfor %}
         </ul>
         {% endif %}
 
         <div class="item-actions">
             <button class="btn btn-warning" onclick="editSubcategory({{ subcategory.id }})">Редактировать</button>
+            <button class="btn btn-secondary" onclick="copySubcategory({{ subcategory.id }})">Копировать</button>
             <button class="btn btn-danger" onclick="deleteSubcategory({{ subcategory.id }})">Удалить</button>
         </div>
     </li>
@@ -116,9 +127,28 @@ const alertDiv = document.getElementById('alert');
 const formTitle = document.getElementById('formTitle');
 const submitBtn = document.getElementById('submitBtn');
 const cancelBtn = document.getElementById('cancelBtn');
+const importBtn = document.getElementById('importBtn');
+const csvFileInput = document.getElementById('csvFile');
 
 let editingId = null;
 let allCharacters = [];
+const ageGroups = [
+    { key: 'ребенок', label: 'Ребенок (8-11)' },
+    { key: 'подросток', label: 'Подросток (12-15)' },
+    { key: 'юный', label: 'Юный (16-18)' },
+    { key: 'молодой', label: 'Молодой (19-23)' },
+    { key: 'средний', label: 'Средний (24-35)' },
+    { key: 'зрелый', label: 'Зрелый (36-55)' },
+    { key: 'старый', label: 'Старый (56-70)' }
+];
+
+const ageLabelsByKey = ageGroups.reduce((acc, item) => {
+    acc[item.key] = item.label;
+    return acc;
+}, {});
+
+// Хранение настроек персонажей для подкатегории
+let characterSettings = {};
 
 // Загрузка персонажей при загрузке страницы
 async function loadCharacters() {
@@ -133,7 +163,7 @@ async function loadCharacters() {
     }
 }
 
-function renderCharacterSelection(selectedIds = []) {
+function renderCharacterSelection(selectedIds = [], savedSettings = []) {
     const container = document.getElementById('characterSelection');
 
     if (allCharacters.length === 0) {
@@ -141,13 +171,54 @@ function renderCharacterSelection(selectedIds = []) {
         return;
     }
 
-    container.innerHTML = allCharacters.map(char => `
-        <label style="display: block; padding: 0.5rem; border-bottom: 1px solid #eee;">
-            <input type="checkbox" class="character-checkbox" value="${char.id}" ${selectedIds.includes(char.id) ? 'checked' : ''}>
-            <strong>${char.name}</strong> - ${char.gender}, ${char.age_min}-${char.age_max} лет
-            ${char.description ? `<br><span style="font-size: 0.9em; color: #666;">${char.description}</span>` : ''}
-        </label>
-    `).join('');
+    if (savedSettings.length > 0) {
+        characterSettings = savedSettings.reduce((acc, setting) => {
+            if (setting.character_id) {
+                acc[setting.character_id] = setting;
+            }
+            return acc;
+        }, {});
+    }
+
+    const primaryId = Object.values(characterSettings).find(setting => setting.is_primary)?.character_id || null;
+
+    container.innerHTML = allCharacters.map(char => {
+        const saved = characterSettings[char.id] || {};
+        const isChecked = selectedIds.includes(char.id);
+        const isPrimary = saved.is_primary || primaryId === char.id;
+        const followsPrimary = saved.follow_primary_age || false;
+        const isUniqueRole = saved.unique_role || false;
+        const ageGroupsText = (char.allowed_age_groups && char.allowed_age_groups.length)
+            ? char.allowed_age_groups.map(key => ageLabelsByKey[key] || key).join(', ')
+            : 'Все доступные возрастные группы';
+
+        return `
+            <div class="character-card" data-id="${char.id}">
+                <label style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                    <input type="checkbox" class="character-checkbox" value="${char.id}" ${isChecked ? 'checked' : ''} onchange="toggleCharacterOptions(${char.id})">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <strong>${char.name}</strong>
+                            <label style="font-size: 0.9em;">
+                                <input type="radio" name="primaryCharacter" value="${char.id}" ${isPrimary ? 'checked' : ''}> Основной
+                            </label>
+                            <label style="font-size: 0.9em;">
+                                <input type="checkbox" id="follow-${char.id}" ${followsPrimary ? 'checked' : ''}> Следует возрасту основного
+                            </label>
+                            <label style="font-size: 0.9em;">
+                                <input type="checkbox" id="unique-${char.id}" ${isUniqueRole ? 'checked' : ''}> Уникальная роль
+                            </label>
+                        </div>
+                        <div style="color: #555; font-size: 0.95em;">${char.gender}</div>
+                        ${char.description ? `<div style=\"font-size: 0.9em; color: #666; margin-top: 0.25rem;\">${char.description}</div>` : ''}
+                        <div style="font-size: 0.9em; color: #444; margin-top: 0.25rem;">Допустимые возрастные группы: ${ageGroupsText}</div>
+                    </div>
+                </label>
+            </div>
+        `;
+    }).join('');
+
+    allCharacters.forEach(char => toggleCharacterOptions(char.id));
 }
 
 subcategoryForm.addEventListener('submit', async (e) => {
@@ -156,6 +227,14 @@ subcategoryForm.addEventListener('submit', async (e) => {
     // Собираем выбранных персонажей
     const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
         .map(cb => parseInt(cb.value));
+
+    const selectedPrimary = document.querySelector('input[name="primaryCharacter"]:checked');
+    if (selectedPrimary && !selectedCharacterIds.includes(parseInt(selectedPrimary.value))) {
+        showAlert('Основной персонаж должен быть выбран среди персонажей подкатегории', 'error');
+        return;
+    }
+
+    const characterSettingsPayload = collectCharacterSettings(selectedCharacterIds);
 
     // Собираем разрешенные перспективы
     const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
@@ -168,7 +247,8 @@ subcategoryForm.addEventListener('submit', async (e) => {
         num_characters_min: parseInt(document.getElementById('numCharMin').value),
         num_characters_max: parseInt(document.getElementById('numCharMax').value),
         character_ids: selectedCharacterIds,
-        allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо']
+        allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо'],
+        character_settings: characterSettingsPayload
     };
 
     try {
@@ -226,7 +306,7 @@ async function editSubcategory(id) {
 
             // Устанавливаем выбранных персонажей
             const characterIds = subcategory.character_ids || subcategory.characters.map(c => c.id) || [];
-            renderCharacterSelection(characterIds);
+            renderCharacterSelection(characterIds, subcategory.character_settings || []);
 
             // Прокрутка к форме
             subcategoryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -242,7 +322,131 @@ function cancelEdit() {
     submitBtn.textContent = 'Добавить подкатегорию';
     cancelBtn.classList.add('hidden');
     subcategoryForm.reset();
+    characterSettings = {};
     renderCharacterSelection();
+}
+
+function collectCharacterSettings(selectedIds) {
+    const primaryInput = document.querySelector('input[name="primaryCharacter"]:checked');
+    const primaryId = primaryInput ? parseInt(primaryInput.value) : null;
+
+    return selectedIds.map(id => {
+        const followsPrimary = document.getElementById(`follow-${id}`);
+        const uniqueRole = document.getElementById(`unique-${id}`);
+        return {
+            character_id: id,
+            is_primary: primaryId === id,
+            follow_primary_age: primaryId !== id && followsPrimary ? followsPrimary.checked : false,
+            unique_role: uniqueRole ? uniqueRole.checked : false
+        };
+    });
+}
+
+function toggleCharacterOptions(characterId) {
+    const checkbox = document.querySelector(`.character-checkbox[value="${characterId}"]`);
+    const isChecked = checkbox ? checkbox.checked : false;
+    const container = checkbox ? checkbox.closest('.character-card') : null;
+    if (!container) return;
+
+    const inputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"][id^="follow-"], input[type="checkbox"][id^="unique-"]');
+    inputs.forEach(input => {
+        if (input === checkbox) return;
+        input.disabled = !isChecked;
+    });
+
+    if (!isChecked) {
+        const radio = container.querySelector('input[type="radio"][name="primaryCharacter"]');
+        if (radio && radio.checked) {
+            radio.checked = false;
+        }
+        const follow = container.querySelector(`#follow-${characterId}`);
+        if (follow) {
+            follow.checked = false;
+        }
+        const unique = container.querySelector(`#unique-${characterId}`);
+        if (unique) {
+            unique.checked = false;
+        }
+    }
+}
+
+function parseCsvContent(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rows = [];
+
+    lines.forEach(line => {
+        let parts = line.split(',');
+        if (parts.length < 2) {
+            parts = line.split(';');
+        }
+
+        const name = (parts[0] || '').trim();
+        const description = (parts.slice(1).join(parts.length > 1 ? (line.includes(';') ? ';' : ',') : ',') || '').trim();
+
+        if (name) {
+            rows.push({ name, description });
+        }
+    });
+
+    return rows;
+}
+
+async function importCsv() {
+    if (!csvFileInput.files || csvFileInput.files.length === 0) {
+        showAlert('Выберите CSV-файл для импорта', 'error');
+        return;
+    }
+
+    const categoryValue = document.getElementById('categoryId').value;
+    if (!categoryValue) {
+        showAlert('Сначала выберите категорию для импорта', 'error');
+        return;
+    }
+
+    const selectedCharacterIds = Array.from(document.querySelectorAll('.character-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
+
+    const characterSettingsPayload = collectCharacterSettings(selectedCharacterIds);
+
+    const perspectives = Array.from(document.querySelectorAll('.perspective-check:checked'))
+        .map(cb => cb.value);
+
+    try {
+        const text = await csvFileInput.files[0].text();
+        const rows = parseCsvContent(text);
+
+        if (rows.length === 0) {
+            showAlert('CSV-файл не содержит подходящих строк', 'error');
+            return;
+        }
+
+        const payload = {
+            category_id: parseInt(categoryValue),
+            num_characters_min: parseInt(document.getElementById('numCharMin').value),
+            num_characters_max: parseInt(document.getElementById('numCharMax').value),
+            character_ids: selectedCharacterIds,
+            allowed_perspectives: perspectives.length > 0 ? perspectives : ['третье_лицо'],
+            character_settings: characterSettingsPayload,
+            rows
+        };
+
+        const response = await fetch('/api/subcategories/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showAlert('Подкатегории успешно импортированы', 'success');
+            csvFileInput.value = '';
+            setTimeout(() => location.reload(), 800);
+        } else {
+            const err = await response.json().catch(() => ({ error: 'Не удалось импортировать CSV' }));
+            showAlert(err.error || 'Не удалось импортировать CSV', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка при чтении CSV: ' + error.message, 'error');
+    }
 }
 
 async function deleteSubcategory(id) {
@@ -266,6 +470,23 @@ async function deleteSubcategory(id) {
     }
 }
 
+async function copySubcategory(id) {
+    try {
+        const response = await fetch(`/api/subcategories/${id}/copy`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showAlert('Подкатегория скопирована', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showAlert('Не удалось скопировать подкатегорию', 'error');
+        }
+    } catch (error) {
+        showAlert('Ошибка: ' + error.message, 'error');
+    }
+}
+
 function showAlert(message, type) {
     alertDiv.className = type === 'success' ? 'alert alert-success' : 'alert alert-error';
     alertDiv.textContent = message;
@@ -275,5 +496,8 @@ function showAlert(message, type) {
 
 // Загружаем персонажей при загрузке страницы
 loadCharacters();
+if (importBtn) {
+    importBtn.addEventListener('click', importCsv);
+}
 </script>
 {% endblock %}

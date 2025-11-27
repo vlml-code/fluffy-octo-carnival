@@ -8,10 +8,26 @@ from models import (
 class StoryPromptGenerator:
     """Генератор промптов для рассказов"""
 
+    AGE_GROUP_RANGES = {
+        "ребенок": (8, 11),
+        "подросток": (12, 15),
+        "юный": (16, 18),
+        "молодой": (19, 23),
+        "средний": (24, 35),
+        "зрелый": (36, 55),
+        "старый": (56, 70),
+    }
+
     def __init__(self, db_session):
         self.db = db_session
 
-    def generate_prompt(self, premium=None):
+    def generate_prompt(
+        self,
+        premium=None,
+        category_ids=None,
+        include_secondary_main=False,
+        include_secondary_other=False,
+    ):
         """Генерирует полный промпт для рассказа
 
         Args:
@@ -20,9 +36,13 @@ class StoryPromptGenerator:
         prompt_parts = []
 
         prompt_parts.append("Твоя задача написать рассказ.\n")
+        prompt_parts.append(
+            "Характеристики персонажей показывай через действия, речь и выборы; "
+            "не перечисляй их напрямую, если сюжет не требует явного упоминания."
+        )
 
         # 1. Выбор категории
-        category = self._select_random_category(premium=premium)
+        category = self._select_random_category(premium=premium, category_ids=category_ids)
         if not category:
             premium_text = "премиум" if premium else "не-премиум"
             return f"Ошибка: нет {premium_text} категорий в базе данных"
@@ -86,7 +106,13 @@ class StoryPromptGenerator:
         prompt_parts.append(perspective_type)
 
         # 5. Второстепенные элементы
-        secondary_elements = self._select_secondary_elements(category, premium=premium)
+        secondary_elements = self._select_secondary_elements(
+            category,
+            premium=premium,
+            main_subcategory=subcategory,
+            include_main_category=include_secondary_main,
+            include_other_categories=include_secondary_other,
+        )
         if secondary_elements:
             prompt_parts.append(f"\n## ВТОРОСТЕПЕННЫЕ ЭЛЕМЕНТЫ")
             prompt_parts.append("(Опциональные элементы, которые могут быть включены в историю как дополнительные сюжетные линии, но не являются основным фокусом)")
@@ -123,16 +149,21 @@ class StoryPromptGenerator:
 
         return "\n".join(prompt_parts)
 
-    def _select_random_category(self, premium=None):
+    def _select_random_category(self, premium=None, category_ids=None):
         """Выбирает случайную категорию
 
         Args:
             premium: None (все категории), False (только не-премиум), True (только премиум)
+            category_ids: список идентификаторов допустимых категорий
         """
-        if premium is None:
-            categories = Category.query.all()
-        else:
-            categories = Category.query.filter_by(is_premium=premium).all()
+        query = Category.query
+
+        if category_ids:
+            query = query.filter(Category.id.in_(category_ids))
+        elif premium is not None:
+            query = query.filter_by(is_premium=premium)
+
+        categories = query.all()
         return random.choice(categories) if categories else None
 
     def _select_random_subcategory(self, category):
@@ -140,41 +171,66 @@ class StoryPromptGenerator:
         subcategories = Subcategory.query.filter_by(category_id=category.id).all()
         return random.choice(subcategories) if subcategories else None
 
-    def _select_secondary_elements(self, main_category, premium=None):
-        """Выбирает 1-2 второстепенных элемента из других категорий
+    def _select_secondary_elements(
+        self,
+        main_category,
+        premium=None,
+        main_subcategory=None,
+        include_main_category=False,
+        include_other_categories=False,
+    ):
+        """Выбирает 1-2 второстепенных элемента по заданным источникам.
 
         Args:
-            main_category: Основная категория (исключается из выбора)
+            main_category: Основная категория
             premium: None (все категории), False (только не-премиум), True (только премиум)
+            main_subcategory: Основная подкатегория (исключается из выбора)
+            include_main_category: включать ли подкатегории основной категории
+            include_other_categories: включать ли подкатегории из других категорий
 
         Returns:
             list: Список словарей с информацией о второстепенных элементах
         """
-        # Получаем все категории кроме основной
-        query = Category.query.filter(Category.id != main_category.id)
-        if premium is not None:
-            query = query.filter_by(is_premium=premium)
-        other_categories = query.all()
-
-        if not other_categories:
+        if not include_main_category and not include_other_categories:
             return []
 
-        # Выбираем 1-2 второстепенных элемента
+        candidate_subcategories = []
+
+        if include_main_category:
+            subcategory_query = Subcategory.query.filter_by(category_id=main_category.id)
+            if main_subcategory is not None:
+                subcategory_query = subcategory_query.filter(Subcategory.id != main_subcategory.id)
+            candidate_subcategories.extend(subcategory_query.all())
+
+        if include_other_categories:
+            other_query = Subcategory.query.join(Category).filter(
+                Subcategory.category_id != main_category.id
+            )
+            if premium is not None:
+                other_query = other_query.filter(Category.is_premium == premium)
+            candidate_subcategories.extend(other_query.all())
+
+        if not candidate_subcategories:
+            return []
+
         num_elements = random.randint(1, 2)
+        selected_subcategories = random.sample(
+            candidate_subcategories,
+            min(num_elements, len(candidate_subcategories)),
+        )
 
         secondary_elements = []
-        selected_categories = random.sample(other_categories, min(num_elements, len(other_categories)))
+        for subcategory in selected_subcategories:
+            if subcategory.category_id == main_category.id:
+                category = subcategory.category or main_category
+            else:
+                category = subcategory.category
 
-        for category in selected_categories:
-            # Выбираем случайную подкатегорию из этой категории
-            subcategories = Subcategory.query.filter_by(category_id=category.id).all()
-            if subcategories:
-                subcategory = random.choice(subcategories)
-                secondary_elements.append({
-                    'category': category.name,
-                    'subcategory': subcategory.name,
-                    'description': subcategory.description
-                })
+            secondary_elements.append({
+                'category': category.name if category else main_category.name,
+                'subcategory': subcategory.name,
+                'description': subcategory.description
+            })
 
         return secondary_elements
 
@@ -193,13 +249,72 @@ class StoryPromptGenerator:
             # Используем персонажей из связанной таблицы
             available_characters = list(subcategory.characters)
 
-            # Генерируем нужное количество персонажей
-            for i in range(num_chars):
-                char_template = available_characters[i % len(available_characters)]
+            character_settings = subcategory.get_character_settings()
+            settings_by_id = {
+                setting.get("character_id"): setting
+                for setting in character_settings
+                if setting.get("character_id") is not None
+            }
+
+            unique_template_ids = {
+                setting.get("character_id")
+                for setting in character_settings
+                if setting.get("unique_role")
+            }
+
+            primary_setting = next(
+                (s for s in settings_by_id.values() if s.get("is_primary")),
+                None
+            )
+            primary_template = None
+            if primary_setting:
+                primary_template = next(
+                    (c for c in available_characters if c.id == primary_setting.get("character_id")),
+                    None
+                )
+
+            primary_age_group = None
+
+            unique_templates = [
+                (c, settings_by_id.get(c.id))
+                for c in available_characters
+                if c.id in unique_template_ids and (not primary_template or c.id != primary_template.id)
+            ]
+            non_unique_templates = [
+                (c, settings_by_id.get(c.id))
+                for c in available_characters
+                if c.id not in unique_template_ids and (not primary_template or c.id != primary_template.id)
+            ]
+
+            random.shuffle(unique_templates)
+            random.shuffle(non_unique_templates)
+
+            if not non_unique_templates and num_chars > (len(unique_templates) + (1 if primary_template else 0)):
+                num_chars = len(unique_templates) + (1 if primary_template else 0)
+
+            generation_order = []
+            if primary_template:
+                generation_order.append((primary_template, primary_setting))
+
+            def select_template(index):
+                if index < len(unique_templates):
+                    return unique_templates[index]
+                if non_unique_templates:
+                    offset = index - len(unique_templates)
+                    return non_unique_templates[offset % len(non_unique_templates)]
+                return None
+
+            for i in range(num_chars - len(generation_order)):
+                chosen = select_template(i)
+                if not chosen:
+                    break
+                generation_order.append(chosen)
+
+            for char_template, setting in generation_order:
 
                 char = {
                     "gender": char_template.gender,
-                    "age": random.randint(char_template.age_min, char_template.age_max),
+                    "age": None,
                     "role": char_template.name,
                     "role_description": char_template.description,
                     "has_initiative": False,
@@ -208,6 +323,14 @@ class StoryPromptGenerator:
                     "is_narrator": False,
                     "can_have_initiative": char_template.can_have_initiative
                 }
+
+                char_age, char_age_group = self._choose_age(
+                    char_template, setting, primary_age_group
+                )
+                if setting and setting.get("is_primary"):
+                    primary_age_group = char_age_group
+
+                char["age"] = char_age
 
                 characters.append(char)
 
@@ -223,8 +346,7 @@ class StoryPromptGenerator:
                 # Если нет спецификации, создаем один стандартный персонаж
                 char_specs = [{
                     "gender": random.choice(["мужской", "женский", "небинарный"]),
-                    "age_min": 18,
-                    "age_max": 60,
+                    "allowed_age_groups": list(self.AGE_GROUP_RANGES.keys()),
                     "can_have_initiative": True
                 }]
 
@@ -232,9 +354,14 @@ class StoryPromptGenerator:
             for i in range(num_chars):
                 spec = char_specs[i % len(char_specs)]
 
+                allowed_groups = [
+                    group for group in spec.get("allowed_age_groups", [])
+                    if group in self.AGE_GROUP_RANGES
+                ]
+
                 char = {
                     "gender": spec.get("gender", "небинарный"),
-                    "age": random.randint(spec.get("age_min", 18), spec.get("age_max", 60)),
+                    "age": self._random_age_from_groups(allowed_groups),
                     "role": spec.get("role"),
                     "role_description": spec.get("role_description"),
                     "has_initiative": False,
@@ -272,6 +399,51 @@ class StoryPromptGenerator:
         self._assign_character_traits(characters)
 
         return characters
+
+    def _choose_age(self, char_template, setting, primary_age_group):
+        """Определяет возраст персонажа с учетом настроек"""
+        follow_primary = (
+            setting
+            and setting.get("follow_primary_age")
+            and primary_age_group is not None
+            and not setting.get("is_primary")
+        )
+
+        allowed_groups = []
+        if setting:
+            allowed_groups = [
+                group for group in setting.get("allowed_age_groups", [])
+                if group in self.AGE_GROUP_RANGES
+            ]
+
+        if not allowed_groups and char_template:
+            try:
+                allowed_groups = [
+                    group for group in char_template.get_allowed_age_groups()
+                    if group in self.AGE_GROUP_RANGES
+                ]
+            except AttributeError:
+                allowed_groups = []
+
+        if follow_primary:
+            chosen_group = primary_age_group
+        elif allowed_groups:
+            chosen_group = random.choice(allowed_groups)
+        else:
+            chosen_group = random.choice(list(self.AGE_GROUP_RANGES.keys()))
+
+        return self._random_age_from_group(chosen_group), chosen_group
+
+    def _random_age_from_groups(self, allowed_groups=None):
+        """Возвращает случайный возраст из указанных возрастных групп"""
+        groups = allowed_groups or list(self.AGE_GROUP_RANGES.keys())
+        chosen_group = random.choice(groups)
+        return self._random_age_from_group(chosen_group)
+
+    def _random_age_from_group(self, group):
+        """Возвращает случайный возраст из конкретной возрастной группы"""
+        age_min, age_max = self.AGE_GROUP_RANGES[group]
+        return random.randint(age_min, age_max)
 
     def _assign_character_traits(self, characters):
         """Назначает случайные характеристики персонажам"""
